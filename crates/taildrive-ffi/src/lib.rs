@@ -2,6 +2,9 @@ mod models;
 mod sync;
 mod transfer;
 
+#[cfg(target_os = "android")]
+mod android;
+
 use std::{fs::File, io::Read, sync::Arc, time::Duration};
 
 use taildrive_core::{

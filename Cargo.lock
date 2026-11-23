@@ -2301,7 +2301,9 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "futures-util",
+ "jni",
  "mime_guess",
+ "rustls-platform-verifier",
  "taildrive-core",
  "tempfile",
  "thiserror",

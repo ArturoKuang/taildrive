@@ -33,3 +33,7 @@
 - Added `crates/taildrive-ffi` (`staticlib` + `cdylib` + workspace `uniffi-bindgen`) generating both Swift and Kotlin bindings from one Rust sync/hash/API core.
 - Built native macOS 14+ SwiftUI menu-bar client (`clients/macos/`) linked statically to `libtaildrive_ffi.a`.
 - Verified: `cargo test --workspace` (24/24), strict `cargo clippy -- -D warnings` (0 warnings), `swift build && swift test` (6/6 tests exercising live Rust FFI transfers, cancellation, and `If-Match` 409 conflict preservation).
+
+## [7] `@coder` (`codex`) — Phase 4B (Native Android Kotlin + Compose + WorkManager Client)
+- Built `clients/android/` (Kotlin + Jetpack Compose + Material 3 + WorkManager + Tailscale VPN detector + Keystore Bearer auth + UniFFI adapter & OkHttp client + `scripts/build-android-rust.sh`).
+- Verified: `gradle testDebugUnitTest assembleDebug` passed and built `clients/android/app/build/outputs/apk/debug/app-debug.apk` (17 MB); Rust workspace tests + strict Clippy + Swift FFI tests all remain green.

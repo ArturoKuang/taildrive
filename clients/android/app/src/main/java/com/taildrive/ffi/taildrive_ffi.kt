@@ -2153,36 +2153,28 @@ sealed class FfiException: kotlin.Exception() {
 
     class InvalidPath(
 
-        val `message`: kotlin.String
+        override val `message`: kotlin.String
         ) : FfiException() {
-        override val message
-            get() = "message=${ `message` }"
     }
 
     class Configuration(
 
-        val `message`: kotlin.String
+        override val `message`: kotlin.String
         ) : FfiException() {
-        override val message
-            get() = "message=${ `message` }"
     }
 
     class Io(
 
-        val `message`: kotlin.String
+        override val `message`: kotlin.String
         ) : FfiException() {
-        override val message
-            get() = "message=${ `message` }"
     }
 
     class Transport(
 
-        val `message`: kotlin.String,
+        override val `message`: kotlin.String,
 
         val `retryable`: kotlin.Boolean
         ) : FfiException() {
-        override val message
-            get() = "message=${ `message` }, retryable=${ `retryable` }"
     }
 
     class Http(
@@ -2191,20 +2183,16 @@ sealed class FfiException: kotlin.Exception() {
 
         val `code`: kotlin.String,
 
-        val `message`: kotlin.String,
+        override val `message`: kotlin.String,
 
         val `retryable`: kotlin.Boolean
         ) : FfiException() {
-        override val message
-            get() = "status=${ `status` }, code=${ `code` }, message=${ `message` }, retryable=${ `retryable` }"
     }
 
     class Integrity(
 
-        val `message`: kotlin.String
+        override val `message`: kotlin.String
         ) : FfiException() {
-        override val message
-            get() = "message=${ `message` }"
     }
 
     class Cancelled(

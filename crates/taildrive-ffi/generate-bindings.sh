@@ -26,4 +26,19 @@ copy_binding() {
 copy_binding TailDriveFFI.swift "$swift_output/TailDriveFFI.swift"
 copy_binding CTailDriveFFI.h "$swift_output/CTailDriveFFI/include/CTailDriveFFI.h"
 copy_binding CTailDriveFFI.modulemap "$swift_output/CTailDriveFFI/include/module.modulemap"
-copy_binding com/taildrive/ffi/taildrive_ffi.kt "$android_output/com/taildrive/ffi/taildrive_ffi.kt"
+# UniFFI 0.32.2 emits two message properties when an error field is named
+# message. Use the field itself as Throwable.message without changing the ABI.
+awk '
+    /^sealed class FfiException:/ { ffi_error = 1 }
+    /^public object FfiConverterTypeFfiError/ { ffi_error = 0 }
+    ffi_error && /val `message`: kotlin.String/ {
+        sub(/val `message`/, "override val `message`")
+        has_message = 1
+    }
+    ffi_error && has_message && /override val message$/ {
+        getline
+        has_message = 0
+        next
+    }
+    { sub(/[ \t]+$/, ""); print }
+' "$temp_dir/com/taildrive/ffi/taildrive_ffi.kt" > "$android_output/com/taildrive/ffi/taildrive_ffi.kt"
