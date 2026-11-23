@@ -89,6 +89,28 @@ impl UploadBody {
 
 impl TailDriveClient {
     pub fn new(base: &str, bearer: Option<String>) -> Result<Self, ClientError> {
+        Self::with_http_builder(base, bearer, reqwest::Client::builder())
+    }
+
+    pub fn with_io_timeout(
+        base: &str,
+        bearer: Option<String>,
+        timeout: Duration,
+    ) -> Result<Self, ClientError> {
+        Self::with_http_builder(
+            base,
+            bearer,
+            reqwest::Client::builder()
+                .connect_timeout(timeout)
+                .read_timeout(timeout),
+        )
+    }
+
+    fn with_http_builder(
+        base: &str,
+        bearer: Option<String>,
+        builder: reqwest::ClientBuilder,
+    ) -> Result<Self, ClientError> {
         let base = Url::parse(base).map_err(|_| ClientError::InvalidBaseUrl)?;
         if !matches!(base.scheme(), "http" | "https")
             || base.host().is_none()
@@ -99,9 +121,7 @@ impl TailDriveClient {
         {
             return Err(ClientError::InvalidBaseUrl);
         }
-        let http = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .build()?;
+        let http = builder.redirect(reqwest::redirect::Policy::none()).build()?;
         Ok(Self { http, base, bearer })
     }
 

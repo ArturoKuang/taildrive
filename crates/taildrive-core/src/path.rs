@@ -9,6 +9,7 @@ use unicode_normalization::UnicodeNormalization;
 
 /// Longest accepted path, in UTF-8 bytes after NFC normalization.
 pub const MAX_PATH_BYTES: usize = 1024;
+const MAX_CONFLICT_NAME_BYTES: usize = 255;
 
 /// A validated drive path. The empty path is the drive root.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -122,7 +123,8 @@ pub fn conflict_path(path: &DrivePath, host: &str, timestamp: &str) -> DrivePath
         _ => (name, ""),
     };
     let parent = parent_path(path.as_str());
-    let budget = MAX_PATH_BYTES - parent.len() - usize::from(!parent.is_empty());
+    let budget = (MAX_PATH_BYTES - parent.len() - usize::from(!parent.is_empty()))
+        .min(MAX_CONFLICT_NAME_BYTES);
     let suffix = format!(" (conflict {tag}){ext}");
     let mut renamed = if suffix.len() <= budget {
         format!(
@@ -283,6 +285,7 @@ mod tests {
         let path = parse_path(&format!("{}.txt", "é".repeat(510))).unwrap();
         let conflict = conflict_path(&path, "cafe\u{301}", "t");
         assert!(conflict.name().ends_with(" (conflict café-t).txt"));
+        assert!(conflict.name().len() <= MAX_CONFLICT_NAME_BYTES);
         assert_eq!(parse_path(conflict.as_str()).unwrap(), conflict);
     }
 }

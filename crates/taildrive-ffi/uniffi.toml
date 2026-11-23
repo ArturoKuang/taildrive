@@ -1,0 +1,8 @@
+[bindings.swift]
+module_name = "TailDriveFFI"
+ffi_module_name = "CTailDriveFFI"
+ffi_module_filename = "CTailDriveFFI"
+
+[bindings.kotlin]
+package_name = "com.taildrive.ffi"
+cdylib_name = "taildrive_ffi"

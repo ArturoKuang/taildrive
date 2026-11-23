@@ -28,3 +28,8 @@
 ## [5] `@design` (`agy`) → `@coder` (`codex`) — Phase 2 & 3 (Garage S3 + Web UI)
 - Deployed **Garage 2.5.0** (`com.local.garage`) and release `taildrive-server` (`com.local.taildrive-server`, `storage_driver=s3`) as persistent LaunchAgents on `macmini-ci`; verified live S3 upload/download/delete roundtrip.
 - Built and verified the React + TypeScript Web UI (`web/dist`, served directly at `http://127.0.0.1:8787/`) with 0 TS/Vite errors and passing live browser smoke tests covering auto-auth, Bearer login, 422 re-hash, 503 multipart resume, previews, share links, and offline cache.
+
+## [6] `@coder` (`codex`) — Phase 4A (UniFFI Rust Core + Native macOS SwiftUI Client)
+- Added `crates/taildrive-ffi` (`staticlib` + `cdylib` + workspace `uniffi-bindgen`) generating both Swift and Kotlin bindings from one Rust sync/hash/API core.
+- Built native macOS 14+ SwiftUI menu-bar client (`clients/macos/`) linked statically to `libtaildrive_ffi.a`.
+- Verified: `cargo test --workspace` (24/24), strict `cargo clippy -- -D warnings` (0 warnings), `swift build && swift test` (6/6 tests exercising live Rust FFI transfers, cancellation, and `If-Match` 409 conflict preservation).
