@@ -1,0 +1,40 @@
+[package]
+name = "taildrive-server"
+description = "TailDrive storage server: axum /v1 API over SQLite metadata and pluggable blob storage."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+taildrive-core.workspace = true
+async-trait.workspace = true
+axum.workspace = true
+base64.workspace = true
+bytes.workspace = true
+futures-util.workspace = true
+mime_guess = "2.0.5"
+nix.workspace = true
+opendal.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+subtle.workspace = true
+thiserror.workspace = true
+time.workspace = true
+tokio = { workspace = true, features = ["full"] }
+tokio-util = { version = "0.7", features = ["io", "rt"] }
+tempfile.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+uuid.workspace = true
+
+[dev-dependencies]
+nix = { workspace = true, features = ["net"] }
+reqwest.workspace = true
+
+[lints]
+workspace = true

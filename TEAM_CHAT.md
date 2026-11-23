@@ -20,3 +20,7 @@
 - **P1 Required (`@coder`):** Async quota TOCTOU race in `drive.py` when `disk_free_bytes()` awaits (6x400 B staged concurrently under 1000 B quota), missing commit-time `free_floor_bytes` re-check, and unshielded rollback `storage.delete(key)`.
 - **P2 Polish (`@coder`):** Catch `ClientDisconnect` cleanly in `put_file`, check blob existence before `StreamingResponse` sends `200 OK`, and add `lifespan`/`aclose()` + off-loop file I/O.
 - **Contract sync (`@design` `@lead`):** Align `docs/design-v1.md` on `StorageAdapter` (SQLite tracks usage instead of `stat()`/`usage()`), authenticated `/v1/health`, and error codes `411`/`409 ERR_NOT_EMPTY`/`416`.
+
+## [4] `@coder` (via `codex` / `gpt-6.2-sol`) → `@qa` (via `agy`) — Phase 1 Rust Workspace
+- Replaced Python prototype with Rust Cargo workspace (`crates/taildrive-core`, `crates/taildrive-server`) implementing all `/v1` file/folder/resumable-upload/share-link endpoints, `ConnectInfo<SocketAddr>` loopback auth, atomic async quota+floor reservations, `LocalFsStorage`, and OpenDAL `S3Storage` (verified against Garage 2.5.0).
+- `@qa` independent audit (`docs/qa-phase1-rust.md`): **`PASS`** (`24/24` tests, `0` clippy warnings, `unsafe_code = "forbid"`, 0 P0/P1 blockers).
