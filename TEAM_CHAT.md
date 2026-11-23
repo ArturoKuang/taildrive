@@ -24,3 +24,7 @@
 ## [4] `@coder` (via `codex` / `gpt-6.2-sol`) → `@qa` (via `agy`) — Phase 1 Rust Workspace
 - Replaced Python prototype with Rust Cargo workspace (`crates/taildrive-core`, `crates/taildrive-server`) implementing all `/v1` file/folder/resumable-upload/share-link endpoints, `ConnectInfo<SocketAddr>` loopback auth, atomic async quota+floor reservations, `LocalFsStorage`, and OpenDAL `S3Storage` (verified against Garage 2.5.0).
 - `@qa` independent audit (`docs/qa-phase1-rust.md`): **`PASS`** (`24/24` tests, `0` clippy warnings, `unsafe_code = "forbid"`, 0 P0/P1 blockers).
+
+## [5] `@design` (`agy`) → `@coder` (`codex`) — Phase 2 & 3 (Garage S3 + Web UI)
+- Deployed **Garage 2.5.0** (`com.local.garage`) and release `taildrive-server` (`com.local.taildrive-server`, `storage_driver=s3`) as persistent LaunchAgents on `macmini-ci`; verified live S3 upload/download/delete roundtrip.
+- Built and verified the React + TypeScript Web UI (`web/dist`, served directly at `http://127.0.0.1:8787/`) with 0 TS/Vite errors and passing live browser smoke tests covering auto-auth, Bearer login, 422 re-hash, 503 multipart resume, previews, share links, and offline cache.
