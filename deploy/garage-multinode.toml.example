@@ -1,0 +1,23 @@
+# Garage 2.5+ Multi-Node Cluster Config Template (over Tailscale)
+# Place on each storage node (Mac mini #1, Mac mini #2, Linux box #3, etc.)
+# Replace <THIS_NODE_TAILSCALE_IP>, <SHARED_32B_HEX_RPC_SECRET>, and <ADMIN_TOKEN>.
+
+metadata_dir = "/Volumes/TailDrivePool/garage/meta"
+data_dir = "/Volumes/TailDrivePool/garage/data"
+db_engine = "sqlite"
+
+# Set to 2 once you have >=2 nodes, or 3 once you have >=3 nodes
+replication_factor = 2
+
+rpc_bind_addr = "<THIS_NODE_TAILSCALE_IP>:3901"
+rpc_public_addr = "<THIS_NODE_TAILSCALE_IP>:3901"
+rpc_secret = "<SHARED_32B_HEX_RPC_SECRET>"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "127.0.0.1:3900"
+root_domain = ".s3.garage.localhost"
+
+[admin]
+api_bind_addr = "127.0.0.1:3903"
+admin_token = "<ADMIN_TOKEN>"

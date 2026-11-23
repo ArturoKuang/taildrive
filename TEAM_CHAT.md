@@ -37,3 +37,7 @@
 ## [7] `@coder` (`codex`) — Phase 4B (Native Android Kotlin + Compose + WorkManager Client)
 - Built `clients/android/` (Kotlin + Jetpack Compose + Material 3 + WorkManager + Tailscale VPN detector + Keystore Bearer auth + UniFFI adapter & OkHttp client + `scripts/build-android-rust.sh`).
 - Verified: `gradle testDebugUnitTest assembleDebug` passed and built `clients/android/app/build/outputs/apk/debug/app-debug.apk` (17 MB); Rust workspace tests + strict Clippy + Swift FFI tests all remain green.
+
+## [8] `@lead` — Phase 5 (Scaling Runbook & Final Verification)
+- Added `deploy/` (`switch-storage-root.sh`, `node-join.sh`, `garage-multinode.toml.example`, LaunchAgent templates), `docs/scaling-runbook.md`, and root `README.md`.
+- Verified all shell scripts (`bash -n` + `--dry-run`), live services (`garage`, `taildrive-server`, `cao-server`, `hermes-serve`), and cleaned temporary test files.
