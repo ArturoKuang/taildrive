@@ -105,3 +105,11 @@ interface StorageAdapter {
 ```
 - **Blob Layout (`local-fs`):** `$TAILDRIVE_DATA_DIR/blobs/<sha256[0..2]>/<id>` + `$TAILDRIVE_DATA_DIR/tmp/<uuid>` (same filesystem for atomic `rename`).
 - **Metadata DB (SQLite Slice 1):** `files(id PK, path UNIQUE, parent_path INDEX, type, object_key, size_bytes, mime, sha256, version, updated_at)` — swapping to S3/SeaweedFS/Garage or Postgres requires zero API or client changes.
+
+## Contract Alignment Addendum (Rust Workspace + QA Slice 1 Sync)
+- **Auth:** `/v1/health` requires auth (unauthenticated probe returns `401`). Loopback verification MUST inspect true TCP socket peer (`ConnectInfo<SocketAddr>`), never `X-Forwarded-For`.
+- **Storage Trait:** Omit `stat()` and `usage()` from `StorageAdapter`; SQLite metadata tracks `used_bytes` (O(1) on S3/Garage), and storage exposes `disk_free_bytes()` (returning `None` on remote S3).
+- **Additional Error Codes:** `411 ERR_LENGTH_REQUIRED` (missing `Content-Length` on single-shot `PUT`), `409 ERR_NOT_EMPTY` (folder delete without `recursive=true`), `416 ERR_RANGE_NOT_SATISFIABLE` (invalid `Range` or 0-byte range).
+- **Phase 2 Extensions:**
+  - Resumable chunked uploads: `POST /v1/uploads` -> `{ upload_id, part_size }`, `PUT /v1/uploads/{id}/parts/{part_num}` (with `X-Content-SHA256`), `POST /v1/uploads/{id}/complete` (with final `X-Content-SHA256` + optional `If-Match`), `DELETE /v1/uploads/{id}`.
+  - Expiring read-only share links: `POST /v1/shares` `{ path, expires_in_seconds }`, `GET /v1/shares`, `DELETE /v1/shares/{id}`, and public `GET /s/{token}` (stream download without auth, honoring expiry & revocation).

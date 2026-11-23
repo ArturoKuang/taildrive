@@ -1,28 +1,21 @@
-# TailDrive — Private Self-Hosted Cloud Storage Data Center
+# TailDrive — Private Self-Hosted Cloud Storage Data Center (Rust)
 
 ## Vision
-Build our own custom, private Dropbox-style cloud storage data center anchored on `macmini-ci` and reachable over Tailscale, engineered to scale horizontally to additional machines/drives later.
+Build our own custom, private Dropbox-style cloud storage data center anchored on `macmini-ci` (`arturos-mac-mini`, `100.97.87.111`) over Tailscale, engineered to scale horizontally to additional machines/drives later.
 
-## Locked Decisions (v1)
-1. **Architecture (Hybrid Open-Source + Custom):**
-   - **Storage engine:** Open-source distributed S3-compatible object storage (e.g., **SeaweedFS** or **Garage** — pluggable S3 driver behind a clean storage interface so adding extra nodes/drives later requires zero client changes).
-   - **Control plane / Sync API:** Custom lightweight API + metadata DB (SQLite for single-node dev, swappable to Postgres for multi-node) handling auth (Tailscale identity / WhoIs + bearer tokens), folder hierarchy, chunked/resumable uploads, file versions/hashes, share links, and per-node storage quotas.
-   - **Clients:** Custom **Web UI**, **Android app**, and **native macOS app** (Finder/menu-bar sync & mount).
-2. **v1 Feature Bar (Cloud Drive + Desktop Mount first):**
-   - Web file browser (upload, download, folders, preview, search, share links, storage quota meter).
-   - Android app (browse, upload/download, background photo/file upload over Tailscale).
-   - Native macOS app (menu-bar app + synced folder / mount).
-   - **v2 (deferred, keep contract ready):** macOS File Provider on-demand virtual files & full bidirectional offline conflict resolution.
-3. **Storage Plan (`macmini-ci` constraint):**
-   - `macmini-ci` currently has ~33 GB free on its internal 228 GB SSD (no external volumes mounted).
-   - v1 runs on the internal SSD with a **strict configurable dev storage quota** (e.g., 5 GB default cap + hard free-space floor) and a clean swappable storage root/endpoint so we can point it at an external SSD/DAS (`/Volumes/...`) or multi-node SeaweedFS/Garage cluster later without rewriting the app.
-4. **Networking & Security:**
-   - Private by default over **Tailscale** (`100.x.y.z` / MagicDNS).
-   - Leverage Tailscale identity headers (`tailscale serve` / WhoIs) + scoped API keys for mobile/desktop clients.
-   - Enforce path-traversal protection, checksum verification (SHA-256), and strict quota checks before accepting uploads.
-
-## Team Roster & Routing
-- **`@lead`** (`claude` / `claude-lead`): Architecture, contracts, decomposition, sign-off.
-- **`@design`** (`agy` / `agy-design`): Cross-platform UX flows, design tokens, state specs (Web, macOS, Android).
-- **`@coder`** (`claude` / `claude-coder` + `codex` / `codex-coder`): Backend, storage adapter, clients, tests.
-- **`@qa`** (`codex` / `codex-qa`): Adversarial review, automated tests, edge-case & security gates (`pstack`).
+## Locked Stack & Architecture
+- **Workspace Language:** **Rust** Cargo workspace (`rustc 1.100+`):
+  - `crates/taildrive-core`: shared domain types, NFC path safety & traversal guards, streaming SHA-256, `/v1` API client, retry backoff, and `If-Match` conflict filename resolver.
+  - `crates/taildrive-server`: `axum` + `tokio` + `sqlx` (SQLite, swappable to Postgres) + `opendal` (pluggable `local-fs` and `s3` for **Garage** / SeaweedFS) + `rust-embed` (serves `web/dist` directly from the single binary).
+  - `crates/taildrive-ffi`: **UniFFI** bindings exporting `taildrive-core` to **Swift** (macOS) and **Kotlin** (Android).
+- **Distributed Storage Engine:** **Garage (`2.5.0`)** S3-compatible object store (Rust-native, multi-node ready), with `local-fs` fallback and a configurable storage root so swapping from internal SSD to `/Volumes/<external-ssd>` or adding extra nodes requires zero client changes.
+- **Clients:**
+  - `web/`: React + TypeScript + Vite Web UI (embedded in `taildrive-server`), matching `docs/design-v1.md`.
+  - `clients/macos/`: Native SwiftUI menu-bar app + `~/TailDrive` synced folder powered by `taildrive-ffi` (v1 mirror; contract ready for v2 File Provider).
+  - `clients/android/`: Native Kotlin + Jetpack Compose + WorkManager app powered by `taildrive-ffi` (3 tabs: Files, Backup, Transfers).
+- **Storage & Security Invariants (incorporating Slice 1 QA audit):**
+  - Default `TAILDRIVE_QUOTA_BYTES=5368709120` (5 GB) and `TAILDRIVE_FREE_FLOOR_BYTES=5368709120` (5 GB SSD floor on `macmini-ci`).
+  - Atomic `tokio::sync::Mutex` capacity reservation + commit-time quota & free-space floor re-check + shielded rollback cleanup.
+  - Loopback-only `Tailscale-User-Login` verified via true TCP peer `ConnectInfo<SocketAddr>` (never trusting `X-Forwarded-For`), plus constant-time scoped Bearer tokens.
+  - `/v1/health` requires auth (`401` unauthenticated probe). Standard error envelope `{ error: { code, message, retryable, details } }` on all 4xx/5xx including `411 ERR_LENGTH_REQUIRED`, `409 ERR_NOT_EMPTY`, `416 ERR_RANGE_NOT_SATISFIABLE`.
+  - Resumable chunked uploads (`/v1/uploads`) and expiring read-only share links (`/v1/shares`, `/s/{token}`).
