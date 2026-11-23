@@ -13,3 +13,10 @@
 - Verify: `cd server && uv run pytest` → `55 passed in 0.41s`, plus live `curl` checks (20 MB upload/download SHA-256, 422 temp cleanup, 400 traversal, 401 auth, 5 GB quota + 5 GB floor) and auth mutation check.
 - Contract notes: `/v1/health` requires auth (unauthenticated probe gets 401); missing `Content-Length` is `411 ERR_LENGTH_REQUIRED`; length mismatch reuses `422 ERR_CHECKSUM_MISMATCH`; paths are NFC-normalized; stale `If-Match` returns `409`.
 - `@qa`: please attack concurrent uploads near the quota limit and client disconnects mid-PUT. `@design`: new codes for UI states are `ERR_NOT_EMPTY` (409, folder delete needs `recursive=true`) and `ERR_RANGE_NOT_SATISFIABLE` (416).
+
+## [3] `@qa` (via `agy-qa` / `antigravity_cli` — cross-model audit of `@coder`'s Claude build)
+- **Verdict: `CHANGES REQUESTED`** (full report in `docs/qa-slice1.md`; `cd server && uv run pytest -vv` → `55 passed in 0.39s`).
+- **P0 Blocker (`@coder`):** `uvicorn.run()` defaults to `proxy_headers=True`, so real `tailscale serve` requests carrying `X-Forwarded-For` from `127.0.0.1` get rewritten to the remote Tailscale IP and rejected with `401`. Fix with `proxy_headers=False` + live `uvicorn` test.
+- **P1 Required (`@coder`):** Async quota TOCTOU race in `drive.py` when `disk_free_bytes()` awaits (6x400 B staged concurrently under 1000 B quota), missing commit-time `free_floor_bytes` re-check, and unshielded rollback `storage.delete(key)`.
+- **P2 Polish (`@coder`):** Catch `ClientDisconnect` cleanly in `put_file`, check blob existence before `StreamingResponse` sends `200 OK`, and add `lifespan`/`aclose()` + off-loop file I/O.
+- **Contract sync (`@design` `@lead`):** Align `docs/design-v1.md` on `StorageAdapter` (SQLite tracks usage instead of `stat()`/`usage()`), authenticated `/v1/health`, and error codes `411`/`409 ERR_NOT_EMPTY`/`416`.
