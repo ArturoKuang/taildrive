@@ -1,0 +1,835 @@
+{
+ "description": "Schema sample instances from tools/validate.py; regenerate with WRITE_SAMPLES=1.",
+ "valid": [
+  {
+   "schema": "highlight",
+   "instance": {
+    "color": 3,
+    "page": 12,
+    "cfi": null,
+    "quote": "q",
+    "prefix": "a",
+    "suffix": "b",
+    "section": null,
+    "rects": [
+     [
+      72,
+      640.1,
+      310.5,
+      652.3
+     ]
+    ],
+    "noteId": "n_00000000000000000000000000000000",
+    "extras": {
+     "future": {
+      "x": 1
+     }
+    }
+   }
+  },
+  {
+   "schema": "note",
+   "instance": {
+    "quote": "q",
+    "prefix": "",
+    "suffix": "",
+    "ai": false,
+    "scope": "passage",
+    "body": "hi",
+    "highlightId": "h_1",
+    "created": "2026-11-22T08:00:00Z",
+    "updated": null,
+    "extras": {}
+   }
+  },
+  {
+   "schema": "word",
+   "instance": {
+    "word": "ice cream",
+    "definition": "d",
+    "learned": false,
+    "extras": {}
+   }
+  },
+  {
+   "schema": "lookup",
+   "instance": {
+    "wordId": "w_ice cream",
+    "quote": "ice cream",
+    "prefix": "",
+    "suffix": "",
+    "sentence": "s",
+    "date": "2026-11-22T08:00:00Z",
+    "extras": {}
+   }
+  },
+  {
+   "schema": "book",
+   "instance": {
+    "title": "T",
+    "filename": "T.pdf",
+    "format": "pdf",
+    "docId": "4b1e77c0",
+    "files": [
+     {
+      "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "size": 10,
+      "addedAt": "2026-11-22T08:00:00Z"
+     }
+    ],
+    "currentSha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "extras": {}
+   }
+  },
+  {
+   "schema": "conflict",
+   "instance": {
+    "conflictId": "cf_1",
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "note",
+    "id": "n_1",
+    "baseVersion": 3,
+    "base": {
+     "deleted": false,
+     "payload": {
+      "quote": "q",
+      "prefix": "",
+      "suffix": "",
+      "ai": false,
+      "scope": "passage",
+      "body": "hi",
+      "highlightId": "h_1",
+      "created": "2026-11-22T08:00:00Z",
+      "updated": null,
+      "extras": {}
+     }
+    },
+    "sides": [
+     {
+      "changeId": "c_a",
+      "deviceId": "dev_a",
+      "version": 4,
+      "deleted": false,
+      "payload": {
+       "quote": "q",
+       "prefix": "",
+       "suffix": "",
+       "ai": false,
+       "scope": "passage",
+       "body": "hi",
+       "highlightId": "h_1",
+       "created": "2026-11-22T08:00:00Z",
+       "updated": null,
+       "extras": {}
+      }
+     },
+     {
+      "changeId": "c_b",
+      "deviceId": "dev_b",
+      "version": null,
+      "deleted": true,
+      "payload": null
+     }
+    ],
+    "openedSeq": 9
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "highlight",
+    "id": "h_1",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "color": 3,
+     "page": 12,
+     "cfi": null,
+     "quote": "q",
+     "prefix": "a",
+     "suffix": "b",
+     "section": null,
+     "rects": [
+      [
+       72,
+       640.1,
+       310.5,
+       652.3
+      ]
+     ],
+     "noteId": "n_00000000000000000000000000000000",
+     "extras": {
+      "future": {
+       "x": 1
+      }
+     }
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "word",
+    "id": "w_café",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "word": "ice cream",
+     "definition": "d",
+     "learned": false,
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "note",
+    "id": "h_1",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": true,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": null,
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "book",
+    "id": "sha256:abababababababababababababababababababababababababababababababab",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "title": "T",
+     "filename": "T.pdf",
+     "format": "pdf",
+     "docId": "4b1e77c0",
+     "files": [
+      {
+       "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+       "size": 10,
+       "addedAt": "2026-11-22T08:00:00Z"
+      }
+     ],
+     "currentSha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "note",
+    "id": "n_1",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "quote": "q",
+     "prefix": "",
+     "suffix": "",
+     "ai": false,
+     "scope": "passage",
+     "body": "hi",
+     "highlightId": "h_1",
+     "created": "2026-11-22T08:00:00Z",
+     "updated": null,
+     "extras": {}
+    },
+    "conflict": {
+     "conflictId": "cf_1",
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "kind": "note",
+     "id": "n_1",
+     "baseVersion": 3,
+     "base": {
+      "deleted": false,
+      "payload": {
+       "quote": "q",
+       "prefix": "",
+       "suffix": "",
+       "ai": false,
+       "scope": "passage",
+       "body": "hi",
+       "highlightId": "h_1",
+       "created": "2026-11-22T08:00:00Z",
+       "updated": null,
+       "extras": {}
+      }
+     },
+     "sides": [
+      {
+       "changeId": "c_a",
+       "deviceId": "dev_a",
+       "version": 4,
+       "deleted": false,
+       "payload": {
+        "quote": "q",
+        "prefix": "",
+        "suffix": "",
+        "ai": false,
+        "scope": "passage",
+        "body": "hi",
+        "highlightId": "h_1",
+        "created": "2026-11-22T08:00:00Z",
+        "updated": null,
+        "extras": {}
+       }
+      },
+      {
+       "changeId": "c_b",
+       "deviceId": "dev_b",
+       "version": null,
+       "deleted": true,
+       "payload": null
+      }
+     ],
+     "openedSeq": 9
+    }
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 12,
+     "point": {
+      "x": 72.0,
+      "y": 640.5
+     }
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "epub",
+     "cfi": "epubcfi(/6/4!/4/2/1:0)",
+     "progression": 0.42
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 1
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "position",
+    "id": "p_sha256:abababababababababababababababababababababababababababababababab_dev_a",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "deviceId": "dev_a",
+     "locator": {
+      "format": "pdf",
+      "page": 12,
+      "point": {
+       "x": 72.0,
+       "y": 640.5
+      }
+     },
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "position",
+    "id": "p_sha256:abababababababababababababababababababababababababababababababab_dev_a",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "deviceId": "dev_a",
+     "locator": {
+      "format": "epub",
+      "cfi": "epubcfi(/6/4!/4/2/1:0)",
+      "progression": 0.42
+     },
+     "extras": {}
+    },
+    "conflict": null
+   }
+  }
+ ],
+ "invalid": [
+  {
+   "schema": "highlight",
+   "instance": {
+    "color": 9,
+    "page": 12,
+    "cfi": null,
+    "quote": "q",
+    "prefix": "a",
+    "suffix": "b",
+    "section": null,
+    "rects": [
+     [
+      72,
+      640.1,
+      310.5,
+      652.3
+     ]
+    ],
+    "noteId": "n_00000000000000000000000000000000",
+    "extras": {
+     "future": {
+      "x": 1
+     }
+    }
+   }
+  },
+  {
+   "schema": "highlight",
+   "instance": {
+    "color": 3,
+    "page": 12,
+    "cfi": null,
+    "quote": "q",
+    "prefix": "a",
+    "suffix": "b",
+    "section": null,
+    "rects": [
+     [
+      72,
+      640.1,
+      310.5,
+      652.3
+     ]
+    ],
+    "noteId": "n_00000000000000000000000000000000",
+    "extras": {
+     "future": {
+      "x": 1
+     }
+    },
+    "unknownTop": 1
+   }
+  },
+  {
+   "schema": "word",
+   "instance": {
+    "word": "ice cream",
+    "definition": "d",
+    "learned": false,
+    "extras": {},
+    "lookups": []
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "highlight",
+    "id": "h_1",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "color": 0,
+     "page": 12,
+     "cfi": null,
+     "quote": "q",
+     "prefix": "a",
+     "suffix": "b",
+     "section": null,
+     "rects": [
+      [
+       72,
+       640.1,
+       310.5,
+       652.3
+      ]
+     ],
+     "noteId": "n_00000000000000000000000000000000",
+     "extras": {
+      "future": {
+       "x": 1
+      }
+     }
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "book",
+    "id": "h_x",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "title": "T",
+     "filename": "T.pdf",
+     "format": "pdf",
+     "docId": "4b1e77c0",
+     "files": [
+      {
+       "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+       "size": 10,
+       "addedAt": "2026-11-22T08:00:00Z"
+      }
+     ],
+     "currentSha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "word",
+    "id": "w_\u0007",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "word": "ice cream",
+     "definition": "d",
+     "learned": false,
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "book",
+   "instance": {
+    "title": "T",
+    "filename": "T.pdf",
+    "format": "pdf",
+    "docId": "4b1e77c0",
+    "files": [
+     {
+      "sha256": "cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+      "size": 10,
+      "addedAt": "2026-11-22T08:00:00Z"
+     }
+    ],
+    "currentSha256": "sha256:cdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd",
+    "extras": {}
+   }
+  },
+  {
+   "schema": "conflict",
+   "instance": {
+    "conflictId": "cf_1",
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "note",
+    "id": "n_1",
+    "baseVersion": 3,
+    "base": {
+     "deleted": false,
+     "payload": {
+      "quote": "q",
+      "prefix": "",
+      "suffix": "",
+      "ai": false,
+      "scope": "passage",
+      "body": "hi",
+      "highlightId": "h_1",
+      "created": "2026-11-22T08:00:00Z",
+      "updated": null,
+      "extras": {}
+     }
+    },
+    "sides": [
+     {
+      "changeId": "c_a",
+      "deviceId": "dev_a",
+      "version": 4,
+      "deleted": false,
+      "payload": {
+       "quote": "q",
+       "prefix": "",
+       "suffix": "",
+       "ai": false,
+       "scope": "passage",
+       "body": "hi",
+       "highlightId": "h_1",
+       "created": "2026-11-22T08:00:00Z",
+       "updated": null,
+       "extras": {}
+      }
+     }
+    ],
+    "openedSeq": 9
+   }
+  },
+  {
+   "schema": "highlight",
+   "instance": {
+    "color": 3,
+    "page": 12,
+    "cfi": null,
+    "quote": "q",
+    "prefix": "a",
+    "suffix": "b",
+    "section": null,
+    "rects": [
+     [
+      1,
+      2,
+      3
+     ]
+    ],
+    "noteId": "n_00000000000000000000000000000000",
+    "extras": {
+     "future": {
+      "x": 1
+     }
+    }
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "position",
+    "id": "pos_sha256:abababababababababababababababababababababababababababababababab_dev_a",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "deviceId": "dev_a",
+     "locator": {
+      "format": "pdf",
+      "page": 12,
+      "point": {
+       "x": 72.0,
+       "y": 640.5
+      }
+     },
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "position",
+    "id": "p_h_1_dev_a",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": false,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "deviceId": "dev_a",
+     "locator": {
+      "format": "pdf",
+      "page": 12,
+      "point": {
+       "x": 72.0,
+       "y": 640.5
+      }
+     },
+     "extras": {}
+    },
+    "conflict": null
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "cfi": "epubcfi(/6/4!/4/2/1:0)"
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 3,
+     "cfi": "epubcfi(/6/4)"
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "epub",
+     "cfi": "epubcfi(/6/4!/4/2/1:0)",
+     "progression": 1.2
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 0
+    },
+    "extras": {}
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 12,
+     "point": {
+      "x": 72.0,
+      "y": 640.5
+     }
+    },
+    "extras": {},
+    "scroll": 0.5
+   }
+  },
+  {
+   "schema": "position",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "deviceId": "dev_a",
+    "locator": {
+     "format": "pdf",
+     "page": 12,
+     "point": {
+      "x": 72.0,
+      "y": 640.5
+     }
+    }
+   }
+  },
+  {
+   "schema": "envelope",
+   "instance": {
+    "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+    "kind": "position",
+    "id": "p_sha256:abababababababababababababababababababababababababababababababab_dev_a",
+    "version": 1,
+    "baseVersion": 0,
+    "deleted": true,
+    "deviceId": "dev_a",
+    "changeId": "c_1",
+    "clientTime": null,
+    "seq": 5,
+    "payload": {
+     "bookId": "sha256:abababababababababababababababababababababababababababababababab",
+     "deviceId": "dev_a",
+     "locator": {
+      "format": "pdf",
+      "page": 12,
+      "point": {
+       "x": 72.0,
+       "y": 640.5
+      }
+     },
+     "extras": {}
+    },
+    "conflict": null
+   }
+  }
+ ]
+}

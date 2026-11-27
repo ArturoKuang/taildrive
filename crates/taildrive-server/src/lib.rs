@@ -5,6 +5,7 @@ mod content;
 mod db;
 mod drive;
 pub mod error;
+pub mod reader;
 pub mod storage;
 
 use std::{future::Future, net::SocketAddr, sync::Arc};
@@ -27,6 +28,7 @@ struct AppState {
     token_hashes: Vec<String>,
     node: String,
     web_dir: Option<std::path::PathBuf>,
+    reader: Arc<reader::Reader>,
 }
 
 impl App {
@@ -39,6 +41,7 @@ impl App {
         config: Config,
         storage: Arc<dyn StorageBackend>,
     ) -> StartupResult<Self> {
+        let reader = reader::Reader::open(&config, storage.clone()).await?;
         let drive = Drive::new(&config, storage).await?;
         Ok(Self {
             state: Arc::new(AppState {
@@ -51,6 +54,7 @@ impl App {
                     .collect(),
                 node: config.node_name,
                 web_dir: config.web_dir,
+                reader,
             }),
         })
     }

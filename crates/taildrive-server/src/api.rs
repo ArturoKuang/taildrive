@@ -50,6 +50,7 @@ pub(crate) fn router(app: App) -> Router {
         ));
 
     Router::new()
+        .nest("/v1/reader", crate::reader::router())
         .nest("/v1", authenticated)
         .route("/s/{token}", get(get_share))
         .method_not_allowed_fallback(method_not_allowed)
