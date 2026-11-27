@@ -13,7 +13,13 @@ pub struct Config {
     pub web_dir: Option<PathBuf>,
     pub bind: SocketAddr,
     pub storage: StorageConfig,
+    /// Base URL clients reach this server at; the pairing QR carries `<url>/v1/reader`.
+    pub reader_public_url: String,
+    /// Reader book-store quota in bytes, separate from `quota_bytes`. `None` = no cap.
+    pub reader_book_quota_bytes: Option<u64>,
 }
+
+pub const DEFAULT_READER_PUBLIC_URL: &str = "https://arturos-mac-mini.tail8dc761.ts.net";
 
 pub enum StorageConfig {
     LocalFs,
@@ -39,6 +45,8 @@ impl Config {
             web_dir: None,
             bind: SocketAddr::from(([127, 0, 0, 1], 8787)),
             storage: StorageConfig::LocalFs,
+            reader_public_url: DEFAULT_READER_PUBLIC_URL.to_owned(),
+            reader_book_quota_bytes: None,
         }
     }
 
@@ -59,6 +67,9 @@ impl Config {
         config.bind = env_or("TAILDRIVE_BIND", "127.0.0.1:8787")
             .parse()
             .map_err(|_| ConfigError::Invalid("TAILDRIVE_BIND"))?;
+        config.reader_public_url = env_or("TAILDRIVE_READER_PUBLIC_URL", DEFAULT_READER_PUBLIC_URL);
+        config.reader_book_quota_bytes =
+            Some(number("TAILDRIVE_READER_BOOK_QUOTA_BYTES", 0)?).filter(|bytes| *bytes > 0);
         config.storage = match env_or("TAILDRIVE_STORAGE_DRIVER", "local-fs").as_str() {
             "local-fs" => StorageConfig::LocalFs,
             "s3" => StorageConfig::S3(S3Config {

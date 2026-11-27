@@ -33,7 +33,7 @@ pub(crate) async fn require_auth(
     Ok(next.run(request).await)
 }
 
-fn authenticate(
+pub(crate) fn authenticate(
     peer: Option<SocketAddr>,
     headers: &HeaderMap,
     token_hashes: &[String],
