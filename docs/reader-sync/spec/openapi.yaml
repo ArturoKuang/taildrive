@@ -4,13 +4,15 @@ info:
   version: 1.0.0
   description: |
     v1 HTTP API for syncing Reader records (book, highlight, note, word, lookup, position) and book files.
-    Normative prose: SYNC_SPEC.md (rev 3). Record shapes: ./schemas/*.schema.json.
-    Plain HTTP inside the tailnet only; bound to the Tailscale IP and 127.0.0.1.
+    Normative prose: SYNC_SPEC.md (rev 3.2). Record shapes: ./schemas/*.schema.json.
+    rev 3.2: hosted inside TailDrive on the Mac mini under the base path /v1/reader, reached over HTTPS
+    through `tailscale serve` (tailnet only). Every path below is relative to the server URL, so
+    POST /v1/changes is https://arturos-mac-mini.tail8dc761.ts.net/v1/reader/v1/changes.
 servers:
-  - url: http://100.97.87.111:8788
-    description: Mac mini over Tailscale
-  - url: http://127.0.0.1:8788
-    description: Loopback on the Mac mini
+  - url: https://arturos-mac-mini.tail8dc761.ts.net/v1/reader
+    description: TailDrive on the Mac mini via tailscale serve (tailnet only)
+  - url: http://127.0.0.1:8789/v1/reader
+    description: Test copy on the Mac mini's loopback (Android emulator - http://10.0.2.2:8789/v1/reader)
 security:
   - bearer: []
 tags:
@@ -38,7 +40,7 @@ paths:
     post:
       tags: [pairing]
       operationId: issuePairingToken
-      description: Requires a mac device credential, or a request from 127.0.0.1 (no auth).
+      description: Requires a mac device credential, or TailDrive authentication (a tailscale serve request carrying the caller's Tailscale identity, or a TailDrive API token).
       security: [{bearer: []}, {}]
       requestBody:
         required: true
@@ -61,7 +63,7 @@ paths:
                 properties:
                   token: {type: string}
                   expiresAt: {type: string, format: date-time}
-                  qr: {type: string, description: "readersync://pair?v=1&host=…&port=…&token=…&server=…"}
+                  qr: {type: string, description: "readersync://pair?v=2&url=<server URL, e.g. https://arturos-mac-mini.tail8dc761.ts.net/v1/reader>&token=…&server=<serverId>"}
         "401": {$ref: "#/components/responses/Error"}
         "403": {$ref: "#/components/responses/Error"}
 
@@ -140,7 +142,9 @@ paths:
       operationId: pushChanges
       description: |
         One transaction per batch. Idempotent by batchId and by each changeId.
-        At most one change per (bookId, kind, id) per batch; kind "book" is rejected (use POST /v1/books).
+        At most one change per (bookId, kind, id) per batch; kind "book" is rejected with 400 use_register (use POST /v1/books).
+        Per-change rejections (status "rejected", HTTP 200): bad_base, unknown_book, not_owner, bad_request, change_id_reused.
+        A batchId reused with a different body is 422 change_id_reused. Never subject to the free-disk floor.
         kind "position": id must be p_<bookId>_<own deviceId> (else not_owner), baseVersion is ignored, deletes are
         rejected, and it never opens a conflict. Newest position = highest seq.
       requestBody:
@@ -299,7 +303,10 @@ paths:
     put:
       tags: [blobs]
       operationId: putBlob
-      description: Whole body, or resume with Content-Range bytes start-end/total where start == current Upload-Offset. Verified by SHA-256 on completion.
+      description: |
+        Whole body, or resume with Content-Range bytes start-end/total where start == current Upload-Offset. Verified by SHA-256 on completion.
+        Content-addressed: a blob already present returns 200 without reading the body. If the upload would take the server's
+        free disk below its floor, 507 disk_full (records keep syncing); a configured book quota gives 507 quota_exceeded.
       parameters:
         - {name: Content-Range, in: header, required: false, schema: {type: string, example: "bytes 1048576-2097151/52428800"}}
       requestBody:
@@ -320,6 +327,7 @@ paths:
             Upload-Offset: {schema: {type: integer}, required: true}
         "413": {$ref: "#/components/responses/Error"}
         "422": {$ref: "#/components/responses/Error"}
+        "507": {$ref: "#/components/responses/Error"}
     get:
       tags: [blobs]
       operationId: getBlob
@@ -369,7 +377,8 @@ components:
             code:
               enum: [unauthorized, forbidden, not_found, bad_request, change_id_reused, hash_mismatch,
                      range_not_satisfiable, too_large, already_resolved, stale_base, upload_offset_mismatch,
-                     rate_limited, server_busy, not_owner]
+                     rate_limited, server_busy, not_owner, use_register, unknown_book, bad_base, disk_full,
+                     quota_exceeded, internal]
             message: {type: string}
     Health:
       type: object

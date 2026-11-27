@@ -1,6 +1,6 @@
 # Reader Sync Server: v1 design (SYNC_SPEC)
 
-Status: **rev 3.1** (2026-11-22; changelog in §14). **Spec gate cleared as of rev 3.1:** no open question blocks the build. This is a design for a cloud coding agent to build. Nothing is committed.
+Status: **rev 3.2** (2026-11-26; changelog in §14). **rev 3.2 moves the host into TailDrive** (§0.1, which overrides older sections where they disagree). The record format, payloads and semantics are unchanged from rev 3.1.
 Repo: one repo, `arturo-kuang/reader` (Origin):
 ```
 App/                    Reader for macOS                    (pdf reader)
@@ -22,6 +22,16 @@ Companion files, next to this one: `spec/openapi.yaml` and `spec/schemas/{envelo
 - Conflicts follow a base-version rule. **Content that is identical on both sides is never a conflict.** When both sides changed a record, the server keeps all sides, and the conflict shows up in the pull feed. Any client can resolve it.
 - Books have a permanent `bookId`: the first-synced fingerprint, `sha256:<hex>`. A book also has a `docId` (pdfID or epubID) and a list of file hashes. Registering a file whose `docId` matches an existing book attaches it to that book. Files are content-addressed, uploads are resumable and hash-checked, and downloads support `Range`. The phone sees the full book list and downloads a book when it is opened.
 - The server never writes Markdown and never touches the vault. Each Reader on a Mac projects records into its own files (`spec/markdown-mapping.md`). Conflicts live on the server: Reader **stops writing** `Also changed outside Reader` callouts.
+
+### 0.1 rev 3.2: TailDrive host
+The server is no longer a separate Swift process. It is a module of **TailDrive** (`ArturoKuang/taildrive`, Rust/axum, `crates/taildrive-server/src/reader/`) on the Mac mini, sharing TailDrive's process, storage backend and `tailscale serve` HTTPS front door. Where §2.1, §2.2, §4 and §8.3 describe the Swift server, its port 8788 or plain HTTP, this section wins.
+- **Base URL:** `https://arturos-mac-mini.tail8dc761.ts.net/v1/reader` (configurable with `TAILDRIVE_READER_PUBLIC_URL`; the `/v1/reader` suffix is fixed). Every rev 3.1 path is mounted **unchanged** below it, so clients change only their base URL: `POST /v1/changes` becomes `POST https://…/v1/reader/v1/changes`, `GET /v1/health` becomes `…/v1/reader/v1/health`, and so on. `openapi.yaml` lists this base as its server URL and keeps the rev 3.1 paths.
+- **Transport:** HTTPS through `tailscale serve`, which proxies to TailDrive on 127.0.0.1. Nothing listens publicly. Android no longer needs a cleartext exception for the mini; the only cleartext allowance is a debug-build one for the emulator test copy at `http://10.0.2.2:8789/v1/reader` (the emulator's address for the mini's loopback).
+- **Storage:** records live in their own SQLite file, `reader.db` in TailDrive's data directory (WAL, `synchronous=FULL`, versioned migrations via `PRAGMA user_version`). It is separate from TailDrive's `taildrive.db`; TailDrive's file table and its conflict-copy logic never apply to records. Book files are content-addressed in TailDrive's storage backend under the object key `reader/sha256/<hex>`, so a book is stored once however many devices upload it. Uploads in progress are `.part` files under `<data>/reader/uploads/`.
+- **Auth:** Reader endpoints take only a per-device bearer credential (§4), stored hashed in `reader.db`. These are separate from TailDrive's API tokens and `/s/` share links: a TailDrive token is not a Reader credential and vice versa. `POST /v1/pairing/tokens` and `DELETE /v1/devices/{id}` accept a `mac` device credential **or** TailDrive's own authentication (a request through `tailscale serve`, which carries the caller's Tailscale identity, or a TailDrive API token). That replaces rev 3.1's "loopback without auth".
+- **Pairing QR (v2):** `readersync://pair?v=2&url=<base URL>&token=<t>&server=<serverId>`, for example `readersync://pair?v=2&url=https://arturos-mac-mini.tail8dc761.ts.net/v1/reader&token=…&server=srv_…`. `url` is the base URL above; characters outside RFC 3986 unreserved plus `:` and `/` are percent-encoded. Clients reject `v=1`.
+- **Books quota and the free-disk floor:** the book store has its own quota, separate from TailDrive's 5 GiB files quota, and it is **off by default (no cap)**; `TAILDRIVE_READER_BOOK_QUOTA_BYTES` sets one (507 `quota_exceeded`). TailDrive's free-disk floor (default 5 GiB) **still applies, but only to book uploads**: when a `PUT /v1/blobs/{sha256}` would take the mini's free disk below the floor, the server answers **HTTP 507 with code `disk_full`** before reading the body. Record pushes, pulls, registers and resolves never check the floor, so highlights, notes and words keep syncing while books wait. Clients show the "Mac mini is full" state for `disk_full` (not a network error) and retry the upload later (on open or foreground), not in a loop.
+- **Per-change rejection codes** (in `results[].error.code`, the push itself is HTTP 200): `bad_base`, `unknown_book`, `not_owner`, `bad_request` (position delete), `change_id_reused` (a changeId reused with a different body). Whole-request errors: `use_register` (HTTP 400, a push contains `kind: book`), `change_id_reused` (HTTP 422, a batchId reused with a different body).
 
 ---
 
@@ -148,13 +158,13 @@ The response is `{status, bookId, book: <envelope>}`. Clients map their local bo
 ## 4. Auth and pairing
 - `Authorization: Bearer <credential>` (32 random bytes, base64url, stored as a SHA-256 hash). Every device has a `kind` of `mac` or `phone`. Only `mac` devices can issue pairing tokens and revoke devices. Any paired device can list devices (names and kinds only, no credentials), so it can name the source of a position.
 - Bootstrap: requests from loopback (Reader on the mini) can issue tokens without auth. On the mini there is also `reader-sync pair --kind mac`, which prints a QR for other Macs over ssh.
-- Pairing token: 24 random bytes in base32, valid for 10 minutes, for one device only, stored hashed. The QR encodes `readersync://pair?v=1&host=100.97.87.111&port=8788&token=<t>&server=<serverId>`.
-- Transport is plain HTTP. `apps/mobile` needs `android:networkSecurityConfig` with a cleartext `domain-config` for `100.97.87.111` (and `arturos-mac-mini` if MagicDNS is used), and nothing broader.
+- Pairing token: 24 random bytes in base32, valid for 10 minutes, for one device only, stored hashed. The QR encodes `readersync://pair?v=2&url=https://arturos-mac-mini.tail8dc761.ts.net/v1/reader&token=<t>&server=<serverId>` (rev 3.2, §0.1; v=1 with `host`/`port` is retired).
+- Transport (rev 3.2): HTTPS via `tailscale serve`, see §0.1; the following rev 3.1 note applies only to the retired standalone server. Transport was plain HTTP. `apps/mobile` needed `android:networkSecurityConfig` with a cleartext `domain-config` for `100.97.87.111` (and `arturos-mac-mini` if MagicDNS is used), and nothing broader.
 
 ---
 
 ## 5. HTTP API (full contract in `spec/openapi.yaml`)
-Errors use `{"error":{"code","message"}}`. The codes are `unauthorized` 401, `forbidden` 403, `not_found` 404, `bad_request` 400, `change_id_reused` 422, `hash_mismatch` 422, `range_not_satisfiable` 416, `too_large` 413, `already_resolved`/`stale_base`/`upload_offset_mismatch` 409, and `server_busy` 503.
+Errors use `{"error":{"code","message"}}`. The codes are `unauthorized` 401, `forbidden` 403, `not_found` 404, `bad_request` 400, `change_id_reused` 422, `hash_mismatch` 422, `range_not_satisfiable` 416, `too_large` 413, `already_resolved`/`stale_base`/`upload_offset_mismatch` 409, and `server_busy` 503, plus (rev 3.2) `use_register` 400, `rate_limited` 429, `disk_full` 507 (book uploads only), `quota_exceeded` 507 and `internal` 500. Per-change result codes: `bad_base`, `unknown_book`, `not_owner`, `bad_request`, `change_id_reused`.
 
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
@@ -210,6 +220,7 @@ A conflict object looks like `{conflictId, bookId, kind, id, baseVersion, base: 
   - The server streams the body to `.part`, calling fsync every 8 MiB and at the end. Once the file reaches `total`, it computes a streaming SHA-256 (CryptoKit). On a match it renames the file into `blobs/` and fsyncs the directory, returning 201. On a mismatch it deletes `.part` and returns 422.
   - If the blob already exists, the server returns 200 without reading the body. An upload that stops early gets 202 with `Upload-Offset`.
   - There is one lock per sha: a second concurrent uploader gets 409 with the offset. The size limit is 4 GiB. Stale `.part` files are deleted after 7 days.
+- **Free-disk floor (rev 3.2):** a PUT that would take the server's free disk below TailDrive's floor gets **507 `disk_full`** without its body being read; a configured book quota gives 507 `quota_exceeded`. HEAD, GET and every record endpoint keep working.
 - **GET:** supports `Range` (206), `ETag: "<sha>"`, `If-Range` and `Accept-Ranges: bytes`. Clients verify the hash after the download. Blobs are never deleted in v1.
 
 ---
@@ -406,6 +417,13 @@ Resolved in rev 3: Q2 (v1 = highlights, notes, words, lookups, books, per-device
 Resolved in rev 2: Q1 (bookId/docId/files), Q3 (lookups as records), Q4 (LaunchAgent), Q5 (plain HTTP), Q6 (full list, download on open).
 
 ## 14. Changelog
+- **rev 3.2: TailDrive host** (2026-11-26):
+  - The server is a module inside TailDrive on the mini (§0.1), not a standalone Swift process. Base URL `https://arturos-mac-mini.tail8dc761.ts.net/v1/reader` through `tailscale serve`; all rev 3.1 paths are unchanged below it.
+  - Pairing QR v2: `readersync://pair?v=2&url=<base URL>&token=…&server=…` (§0.1, §4).
+  - Records in `reader.db`, books content-addressed under `reader/sha256/<hex>` in TailDrive's storage; Reader credentials separate from TailDrive tokens.
+  - Books have their own quota, no cap by default. The free-disk floor applies to book uploads only: HTTP 507 `disk_full`; record pushes continue.
+  - Error codes added to `openapi.yaml`: `use_register`, `unknown_book`, `bad_base`, `change_id_reused` (already used), `disk_full`, `quota_exceeded`, `internal`.
+  - `spec/fixtures/sync/schema-samples.json`: the validator's sample instances, shared with the server tests (`tools/validate.py` checks it is current).
 - **rev 3.1:** Q8 closed (no rename in v1) and Q9 closed (hand-written JS normalizer, no NFC). Port moved from 8787 to 8788, because TailDrive already listens on 127.0.0.1:8787 on the mini.
   - **Spec gate cleared.**
   - §12.1 now describes the real `word-id/normalize.json` (30 cases, compared by codepoint arrays). The rule is: trim Swift's whitespace set, then lowercase each character on its own, with no final-sigma context. Naive JS fails 4 of the cases, and the server tests load the file. pdf reader added 3 typed-ς cases (27 to 30).
