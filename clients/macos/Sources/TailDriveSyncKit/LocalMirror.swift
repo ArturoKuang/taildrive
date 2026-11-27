@@ -142,4 +142,21 @@ struct LocalMirror {
             throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
         }
     }
+
+    func delete(_ url: URL, expected: LocalEntry, path: String) throws {
+        let type = try? files.attributesOfItem(atPath: url.path)[.type] as? FileAttributeType
+        if type == nil { return }
+        try validate(url, expected: expected, path: path)
+        if expected.kind == .folder {
+            let children = try files.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
+            for child in children where child.lastPathComponent != ".DS_Store" {
+                throw SyncError.changed(path)
+            }
+        }
+        do {
+            try files.removeItem(at: url)
+        } catch CocoaError.fileNoSuchFile {
+            return
+        }
+    }
 }

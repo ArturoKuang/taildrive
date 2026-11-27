@@ -788,7 +788,7 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_normalize_drive_path(`raw`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
-    external fun uniffi_taildrive_ffi_fn_func_plan_folder_sync(`localEntries`: RustBuffer.ByValue,`remoteEntries`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    external fun uniffi_taildrive_ffi_fn_func_plan_folder_sync(`localEntries`: RustBuffer.ByValue,`remoteEntries`: RustBuffer.ByValue,`baselineEntries`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun ffi_taildrive_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
@@ -918,7 +918,7 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_taildrive_ffi_checksum_func_normalize_drive_path() and 0xFFFF) != 49433) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if ((lib.uniffi_taildrive_ffi_checksum_func_plan_folder_sync() and 0xFFFF) != 11622) {
+    if ((lib.uniffi_taildrive_ffi_checksum_func_plan_folder_sync() and 0xFFFF) != 469) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() and 0xFFFF) != 40067) {
@@ -2065,8 +2065,9 @@ data class SyncEntry (
     var `sha256`: kotlin.String?
     ,
     /**
-     * Supply this on the local entry after a successful sync. It distinguishes
-     * one-sided edits from changes to both copies.
+     * Legacy per-entry baseline hash on local entries. Prefer passing
+     * `baseline_entries` to `plan_folder_sync` so folders and deletions are
+     * tracked as well.
      */
     var `lastSyncedSha256`: kotlin.String?
 
@@ -2444,6 +2445,24 @@ sealed class SyncAction {
         companion object
     }
 
+    data class DeleteRemote(
+        val `path`: kotlin.String) : SyncAction()
+
+    {
+
+
+        companion object
+    }
+
+    data class DeleteLocal(
+        val `path`: kotlin.String) : SyncAction()
+
+    {
+
+
+        companion object
+    }
+
     data class Conflict(
         val `path`: kotlin.String) : SyncAction()
 
@@ -2481,7 +2500,13 @@ public object FfiConverterTypeSyncAction : FfiConverterRustBuffer<SyncAction>{
             4 -> SyncAction.CreateLocalFolder(
                 FfiConverterString.read(buf),
                 )
-            5 -> SyncAction.Conflict(
+            5 -> SyncAction.DeleteRemote(
+                FfiConverterString.read(buf),
+                )
+            6 -> SyncAction.DeleteLocal(
+                FfiConverterString.read(buf),
+                )
+            7 -> SyncAction.Conflict(
                 FfiConverterString.read(buf),
                 )
             else -> throw RuntimeException("invalid enum value, something is very wrong!!")
@@ -2511,6 +2536,20 @@ public object FfiConverterTypeSyncAction : FfiConverterRustBuffer<SyncAction>{
             )
         }
         is SyncAction.CreateLocalFolder -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`path`)
+            )
+        }
+        is SyncAction.DeleteRemote -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterString.allocationSize(value.`path`)
+            )
+        }
+        is SyncAction.DeleteLocal -> {
             // Add the size for the Int that specifies the variant plus the size needed for all fields
             (
                 4UL
@@ -2548,8 +2587,18 @@ public object FfiConverterTypeSyncAction : FfiConverterRustBuffer<SyncAction>{
                 FfiConverterString.write(value.`path`, buf)
                 Unit
             }
-            is SyncAction.Conflict -> {
+            is SyncAction.DeleteRemote -> {
                 buf.putInt(5)
+                FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+            is SyncAction.DeleteLocal -> {
+                buf.putInt(6)
+                FfiConverterString.write(value.`path`, buf)
+                Unit
+            }
+            is SyncAction.Conflict -> {
+                buf.putInt(7)
                 FfiConverterString.write(value.`path`, buf)
                 Unit
             }
@@ -2903,14 +2952,15 @@ public object FfiConverterSequenceTypeSyncAction: FfiConverterRustBuffer<List<Sy
     }
 
 
-    @Throws(FfiException::class) fun `planFolderSync`(`localEntries`: List<SyncEntry>, `remoteEntries`: List<SyncEntry>): List<SyncAction> {
+    @Throws(FfiException::class) fun `planFolderSync`(`localEntries`: List<SyncEntry>, `remoteEntries`: List<SyncEntry>, `baselineEntries`: List<SyncEntry>): List<SyncAction> {
             return FfiConverterSequenceTypeSyncAction.lift(
     uniffiRustCallWithError(FfiException) { _status ->
     UniffiLib.uniffi_taildrive_ffi_fn_func_plan_folder_sync(
 
 
         FfiConverterSequenceTypeSyncEntry.lower(`localEntries`),
-        FfiConverterSequenceTypeSyncEntry.lower(`remoteEntries`),_status)
+        FfiConverterSequenceTypeSyncEntry.lower(`remoteEntries`),
+        FfiConverterSequenceTypeSyncEntry.lower(`baselineEntries`),_status)
 }
     )
     }
