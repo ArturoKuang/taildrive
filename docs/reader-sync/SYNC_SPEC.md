@@ -101,7 +101,7 @@ spec/                      // ours: SYNC_SPEC.md, openapi.yaml, schemas/*.schema
   "seq": 1042, "payload": { …, "extras": {} }, "conflict": null }
 ```
 - **Key:** `(bookId, kind, id)`, compared as exact UTF-8 bytes. The server never normalizes ids. Because `kind` is part of the key, a vault note can reuse its highlight's id (mapping §2, "noteID").
-- `id` is chosen by the client. Allowed: 1–512 UTF-8 bytes, no control characters. Word ids can contain spaces and any Unicode (`w_ice cream`, `w_café`). The other kinds use `IDs.make` (`h_`/`n_`/`l_` + 32 hex). The server does not enforce a prefix for each kind.
+- `id` is chosen by the client. Allowed: 1–512 UTF-8 bytes, no control characters except internal whitespace that §12.1 word-id normalization preserves (`\t` U+0009 and NEL U+0085). Word ids can contain spaces, those preserved whitespace characters, and any Unicode (`w_ice cream`, `w_ice\tcream`, `w_café`). The other kinds use `IDs.make` (`h_`/`n_`/`l_` + 32 hex). The server does not enforce a prefix for each kind.
 - `version` is per record and assigned by the server. `baseVersion` is the version the edit was based on, with 0 meaning create. `deviceId` is stamped by the server. `clientTime` is informational only. `seq` and `conflict` appear only in the feed.
 - `payload` is a JSON object of at most 1 MiB, stored and returned as the **exact bytes received**. For a tombstone, it is the last live payload or `null`. The only payload fields the server reads are those of `kind=book`, which it writes itself (§3.3), and `bookId`/`deviceId` of `kind=position` (owner check, §3.4).
 - **Hash fields:** `bookId` and Reader's `fingerprint` use the prefixed form `sha256:<hex>`. Every field named `sha256`, and blob URL paths, use the bare 64-char lowercase hex.
@@ -419,6 +419,7 @@ Resolved in rev 2: Q1 (bookId/docId/files), Q3 (lookups as records), Q4 (LaunchA
 ## 14. Changelog
 - **rev 3.2: TailDrive host** (2026-11-26):
   - The server is a module inside TailDrive on the mini (§0.1), not a standalone Swift process. Base URL `https://arturos-mac-mini.tail8dc761.ts.net/v1/reader` through `tailscale serve`; all rev 3.1 paths are unchanged below it.
+  - §3.1 `id` matches §12.1: control characters are rejected except `\t` (U+0009) and NEL (U+0085), which word-id normalization preserves inside words.
   - Pairing QR v2: `readersync://pair?v=2&url=<base URL>&token=…&server=…` (§0.1, §4).
   - Records in `reader.db`, books content-addressed under `reader/sha256/<hex>` in TailDrive's storage; Reader credentials separate from TailDrive tokens.
   - Books have their own quota, no cap by default. The free-disk floor applies to book uploads only: HTTP 507 `disk_full`; record pushes continue.

@@ -242,7 +242,9 @@ pub(crate) fn is_sha256(value: &str) -> bool {
 }
 
 fn valid_record_id(id: &str) -> bool {
-    (1..=512).contains(&id.len()) && !id.chars().any(|c| c.is_control() && (c as u32) < 0x80)
+    // §3.1 / §12.1: 1–512 UTF-8 bytes; reject control characters except tab and NEL,
+    // which WordStore.normalize preserves inside words (e.g. "w_ice\tcream").
+    (1..=512).contains(&id.len()) && !id.chars().any(|c| c.is_control() && c != '\t' && c != '\u{0085}')
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1257,5 +1259,39 @@ mod tests {
     fn base32_matches_rfc4648() {
         assert_eq!(base32(b"foobar"), "MZXW6YTBOI");
         assert_eq!(base32(&[0_u8; 24]).len(), 39);
+    }
+
+    #[test]
+    fn valid_record_id_accepts_section_12_1_word_ids_and_rejects_other_controls() {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../docs/reader-sync/spec/fixtures/word-id/normalize.json"
+        );
+        let fixture: Value = serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
+        let cases = fixture["cases"].as_array().unwrap();
+        assert_eq!(cases.len(), 30);
+        let mut accepted = 0;
+        for case in cases {
+            let Some(id) = case["wordId"].as_str() else { continue };
+            assert!(valid_record_id(id), "fixture wordId rejected for {}: {id:?}", case["name"]);
+            accepted += 1;
+        }
+        assert_eq!(accepted, 28, "two of the 30 cases have null wordId after trim");
+
+        for (label, id) in [
+            ("NUL", "w_ice\0cream"),
+            ("LF", "w_ice\ncream"),
+            ("CR", "w_ice\rcream"),
+            ("BEL", "w_ice\u{0007}cream"),
+            ("DEL", "w_ice\u{007f}cream"),
+            ("C1 PAD", "w_ice\u{0080}cream"),
+        ] {
+            assert!(!valid_record_id(id), "{label} should be rejected");
+        }
+        assert!(valid_record_id("w_ice\tcream"));
+        assert!(valid_record_id("w_ice\u{0085}cream"));
+        assert!(!valid_record_id(""));
+        assert!(!valid_record_id(&"a".repeat(513)));
+        assert!(valid_record_id(&"a".repeat(512)));
     }
 }
