@@ -5,6 +5,7 @@ mod content;
 mod db;
 mod drive;
 pub mod error;
+pub mod reader;
 pub mod storage;
 
 use std::{future::Future, net::SocketAddr, sync::Arc};
