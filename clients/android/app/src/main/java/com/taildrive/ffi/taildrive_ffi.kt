@@ -2063,13 +2063,6 @@ data class SyncEntry (
     var `kind`: FileType
     ,
     var `sha256`: kotlin.String?
-    ,
-    /**
-     * Legacy per-entry baseline hash on local entries. Prefer passing
-     * `baseline_entries` to `plan_folder_sync` so folders and deletions are
-     * tracked as well.
-     */
-    var `lastSyncedSha256`: kotlin.String?
 
 ){
 
@@ -2089,22 +2082,19 @@ public object FfiConverterTypeSyncEntry: FfiConverterRustBuffer<SyncEntry> {
             FfiConverterString.read(buf),
             FfiConverterTypeFileType.read(buf),
             FfiConverterOptionalString.read(buf),
-            FfiConverterOptionalString.read(buf),
         )
     }
 
     override fun allocationSize(value: SyncEntry) = (
             FfiConverterString.allocationSize(value.`path`) +
             FfiConverterTypeFileType.allocationSize(value.`kind`) +
-            FfiConverterOptionalString.allocationSize(value.`sha256`) +
-            FfiConverterOptionalString.allocationSize(value.`lastSyncedSha256`)
+            FfiConverterOptionalString.allocationSize(value.`sha256`)
     )
 
     override fun write(value: SyncEntry, buf: ByteBuffer) {
             FfiConverterString.write(value.`path`, buf)
             FfiConverterTypeFileType.write(value.`kind`, buf)
             FfiConverterOptionalString.write(value.`sha256`, buf)
-            FfiConverterOptionalString.write(value.`lastSyncedSha256`, buf)
     }
 }
 
