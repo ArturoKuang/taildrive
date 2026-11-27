@@ -9,13 +9,55 @@ struct Checkpoint: Codable {
         let version: UInt64
     }
 
+    enum CodingKeys: String, CodingKey {
+        case files, folders, recent
+    }
+
     var files: [String: Version] = [:]
+    var folders: Set<String> = []
     var recent: [String] = []
 
-    mutating func record(_ item: FileItem) {
-        if let hash = item.sha256 {
-            files[item.path] = Version(sha256: hash, etag: item.etag, version: item.version)
+    init(files: [String: Version] = [:], folders: Set<String> = [], recent: [String] = []) {
+        self.files = files
+        self.folders = folders
+        self.recent = recent
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        files = try container.decodeIfPresent([String: Version].self, forKey: .files) ?? [:]
+        recent = try container.decodeIfPresent([String].self, forKey: .recent) ?? []
+        if let decodedFolders = try container.decodeIfPresent(Set<String>.self, forKey: .folders) {
+            folders = decodedFolders
+        } else {
+            // Legacy checkpoint upgrade: infer synced parent folders from synced files
+            // without marking any previously untracked folder as deleted.
+            var inferred: Set<String> = []
+            for path in files.keys {
+                var current = path
+                while let slash = current.lastIndex(of: "/") {
+                    current = String(current[..<slash])
+                    if !current.isEmpty { inferred.insert(current) }
+                }
+            }
+            folders = inferred
         }
+    }
+
+    mutating func record(_ item: FileItem) {
+        if item.kind == .folder {
+            folders.insert(item.path)
+            files.removeValue(forKey: item.path)
+        } else if let hash = item.sha256 {
+            files[item.path] = Version(sha256: hash, etag: item.etag, version: item.version)
+            folders.remove(item.path)
+        }
+    }
+
+    mutating func remove(_ path: String) {
+        files.removeValue(forKey: path)
+        folders.remove(path)
+        recent.removeAll { $0 == path }
     }
 
     mutating func touch(_ path: String) {
@@ -129,13 +171,27 @@ final class SyncWorker: @unchecked Sendable {
         let remoteEntries = remote.values.map { item in
             SyncEntry(path: item.path, kind: item.kind, sha256: item.sha256, lastSyncedSha256: nil)
         }
-        let actions = try TailDriveFFI.planFolderSync(localEntries: localEntries, remoteEntries: remoteEntries)
+        var baselineEntries: [SyncEntry] = checkpoint.files.map { path, version in
+            SyncEntry(path: path, kind: .file, sha256: version.sha256, lastSyncedSha256: nil)
+        }
+        for folder in checkpoint.folders where checkpoint.files[folder] == nil {
+            baselineEntries.append(SyncEntry(path: folder, kind: .folder, sha256: nil, lastSyncedSha256: nil))
+        }
+
+        let actions = try TailDriveFFI.planFolderSync(
+            localEntries: localEntries, remoteEntries: remoteEntries, baselineEntries: baselineEntries
+        )
         let planned = Set(actions.map(\.path))
         let current = Set(local.keys).union(remote.keys)
         checkpoint.files = checkpoint.files.filter { current.contains($0.key) }
+        checkpoint.folders = checkpoint.folders.filter { current.contains($0) }
         checkpoint.recent = checkpoint.recent.filter { local[$0] != nil }
-        for (path, item) in remote where item.sha256 != nil && local[path]?.sha256 == item.sha256 {
-            checkpoint.record(item)
+        for (path, item) in remote {
+            if item.kind == .folder, local[path]?.kind == .folder {
+                checkpoint.folders.insert(path)
+            } else if item.sha256 != nil, local[path]?.sha256 == item.sha256 {
+                checkpoint.record(item)
+            }
         }
         try save()
         deliver(.recent(checkpoint.recent))
@@ -144,7 +200,10 @@ final class SyncWorker: @unchecked Sendable {
         for action in actions {
             let path = action.path
             guard control.permits() else { return }
-            guard control.permits(path), !hasAncestor(path, in: unavailable) else {
+            let blockedByTree = action.isDelete
+                ? hasDescendant(path, in: unavailable)
+                : hasAncestor(path, in: unavailable)
+            guard control.permits(path), !blockedByTree else {
                 unavailable.insert(path)
                 continue
             }
@@ -196,9 +255,32 @@ final class SyncWorker: @unchecked Sendable {
             guard let local else { throw SyncError.changed(path) }
             try mirror.validate(target, expected: local, path: path)
             _ = try client.createFolder(path: path)
+            checkpoint.folders.insert(path)
         case .createLocalFolder:
             try mirror.validate(target, expected: nil, path: path)
             try FileManager.default.createDirectory(at: target, withIntermediateDirectories: false)
+            checkpoint.folders.insert(path)
+        case .deleteRemote:
+            try mirror.validate(target, expected: nil, path: path)
+            do {
+                let result = try client.deletePath(path: path, recursive: false)
+                quota = result.quota
+                deliver(.quota(quota))
+            } catch let error as FfiError {
+                if case .Http(404, "ERR_NOT_FOUND", _, _) = error {
+                    // Already removed on the server.
+                } else if case .Http(409, "ERR_NOT_EMPTY", _, _) = error {
+                    deliver(.rescan)
+                    throw SyncError.changed(path)
+                } else {
+                    throw error
+                }
+            }
+            checkpoint.remove(path)
+        case .deleteLocal:
+            guard let local else { throw SyncError.changed(path) }
+            try mirror.delete(target, expected: local, path: path)
+            checkpoint.remove(path)
         case .upload:
             guard let local else { throw SyncError.changed(path) }
             try mirror.validate(target, expected: local, path: path)
@@ -255,6 +337,7 @@ final class SyncWorker: @unchecked Sendable {
         let sibling = try mirror.preserveConflict(
             path: path, expected: local, occupiedRemotePaths: Set(remote.keys)
         )
+        checkpoint.remove(path)
         if local.kind == .file { checkpoint.touch(sibling) }
         deliver(.rescan)
     }
@@ -277,14 +360,27 @@ final class SyncWorker: @unchecked Sendable {
     private func hasAncestor(_ path: String, in paths: Set<String>) -> Bool {
         path.indices.contains { path[$0] == "/" && paths.contains(String(path[..<$0])) }
     }
+
+    private func hasDescendant(_ path: String, in paths: Set<String>) -> Bool {
+        let prefix = path + "/"
+        return paths.contains { $0.hasPrefix(prefix) }
+    }
 }
 
 private extension SyncAction {
     var path: String {
         switch self {
         case .upload(let path), .download(let path), .createRemoteFolder(let path),
-             .createLocalFolder(let path), .conflict(let path):
+             .createLocalFolder(let path), .deleteRemote(let path), .deleteLocal(let path),
+             .conflict(let path):
             return path
+        }
+    }
+
+    var isDelete: Bool {
+        switch self {
+        case .deleteRemote, .deleteLocal: return true
+        default: return false
         }
     }
 }

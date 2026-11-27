@@ -351,7 +351,7 @@ RustBuffer uniffi_taildrive_ffi_fn_func_normalize_drive_path(RustBuffer raw, Rus
 #endif
 #ifndef UNIFFI_FFIDEF_UNIFFI_TAILDRIVE_FFI_FN_FUNC_PLAN_FOLDER_SYNC
 #define UNIFFI_FFIDEF_UNIFFI_TAILDRIVE_FFI_FN_FUNC_PLAN_FOLDER_SYNC
-RustBuffer uniffi_taildrive_ffi_fn_func_plan_folder_sync(RustBuffer local_entries, RustBuffer remote_entries, RustCallStatus *_Nonnull out_status
+RustBuffer uniffi_taildrive_ffi_fn_func_plan_folder_sync(RustBuffer local_entries, RustBuffer remote_entries, RustBuffer baseline_entries, RustCallStatus *_Nonnull out_status
 );
 #endif
 #ifndef UNIFFI_FFIDEF_FFI_TAILDRIVE_FFI_RUSTBUFFER_ALLOC

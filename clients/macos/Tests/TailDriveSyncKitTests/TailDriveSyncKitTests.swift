@@ -48,20 +48,20 @@ final class TailDriveSyncKitTests: XCTestCase {
             entry("remote-change", a), entry("same", a), entry("conflict", b),
             entry("local-change", b), entry("remote-only", a),
         ]
-        XCTAssertEqual(try planFolderSync(localEntries: local, remoteEntries: remote), [
+        XCTAssertEqual(try planFolderSync(localEntries: local, remoteEntries: remote, baselineEntries: []), [
             .conflict(path: "conflict"), .createRemoteFolder(path: "folder"),
             .upload(path: "folder/new"), .upload(path: "local-change"),
             .download(path: "remote-change"), .download(path: "remote-only"),
         ])
         XCTAssertEqual(
-            try planFolderSync(localEntries: local, remoteEntries: remote + [entry("folder", b)]).filter {
+            try planFolderSync(localEntries: local, remoteEntries: remote + [entry("folder", b)], baselineEntries: []).filter {
                 if case .upload(path: "folder/new") = $0 { return true }
                 return false
             },
             []
         )
         XCTAssertThrowsError(try planFolderSync(
-            localEntries: [entry("café", a), entry("cafe\u{301}", b)], remoteEntries: []
+            localEntries: [entry("café", a), entry("cafe\u{301}", b)], remoteEntries: [], baselineEntries: []
         ))
     }
 
@@ -187,6 +187,209 @@ final class TailDriveSyncKitTests: XCTestCase {
             try Data(repeating: 2, count: newSize).write(to: file)
             let retry = try client.uploadFile(remotePath: remote, localFilePath: file.path, ifMatch: nil)
             XCTAssertEqual(retry.item.sizeBytes, UInt64(newSize))
+        }
+    }
+
+
+    func testLocalNonEmptyFolderDeletePropagatesAndDoesNotResurrect() throws {
+        try withTestServer { server, root in
+            let files = FileManager.default
+            let folderA = root.appendingPathComponent("client-a", isDirectory: true)
+            let stateA = root.appendingPathComponent("state-a", isDirectory: true)
+            let folderB = root.appendingPathComponent("client-b", isDirectory: true)
+            let stateB = root.appendingPathComponent("state-b", isDirectory: true)
+
+            let clientA = try makeClient(server)
+            let workerA = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folderA),
+                client: clientA, stateDirectory: stateA
+            )
+            workerA.control.setRunning(true)
+
+            let clientB = try makeClient(server)
+            let workerB = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folderB),
+                client: clientB, stateDirectory: stateB
+            )
+            workerB.control.setRunning(true)
+
+            // Seed non-empty folder, nested folder, empty folder, and root file on Client A.
+            let aiNotesA = folderA.appendingPathComponent("AI Notes", isDirectory: true)
+            let subA = aiNotesA.appendingPathComponent("sub", isDirectory: true)
+            let emptyA = folderA.appendingPathComponent("EmptyFolder", isDirectory: true)
+            try files.createDirectory(at: subA, withIntermediateDirectories: true)
+            try files.createDirectory(at: emptyA, withIntermediateDirectories: true)
+            try Data("note 1".utf8).write(to: aiNotesA.appendingPathComponent("note1.md"))
+            try Data("note 2".utf8).write(to: subA.appendingPathComponent("note2.md"))
+            try Data("root note".utf8).write(to: folderA.appendingPathComponent("root.md"))
+
+            // Sync A -> server -> B.
+            try workerA.sync { _ in }
+            try workerB.sync { _ in }
+
+            let aiNotesB = folderB.appendingPathComponent("AI Notes", isDirectory: true)
+            let emptyB = folderB.appendingPathComponent("EmptyFolder", isDirectory: true)
+            let rootB = folderB.appendingPathComponent("root.md")
+            XCTAssertTrue(files.fileExists(atPath: aiNotesB.appendingPathComponent("sub/note2.md").path))
+            XCTAssertTrue(files.fileExists(atPath: emptyB.path))
+            XCTAssertTrue(files.fileExists(atPath: rootB.path))
+
+            // Add a .DS_Store inside Client B's AI Notes folder to ensure ignored metadata does not block folder deletion.
+            try Data("finder-meta".utf8).write(to: aiNotesB.appendingPathComponent(".DS_Store"))
+
+            // Delete non-empty folder, empty folder, and root file on Client A (simulate Trash move / delete).
+            try files.removeItem(at: aiNotesA)
+            try files.removeItem(at: emptyA)
+            try files.removeItem(at: folderA.appendingPathComponent("root.md"))
+
+            // Sync A twice to verify deletes propagate and NEVER resurrect.
+            try workerA.sync { _ in }
+            try workerA.sync { _ in }
+
+            XCTAssertFalse(files.fileExists(atPath: aiNotesA.path))
+            XCTAssertFalse(files.fileExists(atPath: emptyA.path))
+            XCTAssertFalse(files.fileExists(atPath: folderA.appendingPathComponent("root.md").path))
+            XCTAssertEqual(try clientA.listFiles(path: "", cursor: nil, limit: nil).items, [])
+
+            // Sync B twice to verify remote deletes propagate locally and do not re-upload.
+            try workerB.sync { _ in }
+            try workerB.sync { _ in }
+
+            XCTAssertFalse(files.fileExists(atPath: aiNotesB.path))
+            XCTAssertFalse(files.fileExists(atPath: emptyB.path))
+            XCTAssertFalse(files.fileExists(atPath: rootB.path))
+            XCTAssertEqual(try clientA.listFiles(path: "", cursor: nil, limit: nil).items, [])
+
+            // Recreating a previously deleted folder + file syncs cleanly again.
+            try files.createDirectory(at: aiNotesA, withIntermediateDirectories: true)
+            try Data("fresh".utf8).write(to: aiNotesA.appendingPathComponent("fresh.md"))
+            try workerA.sync { _ in }
+            try workerB.sync { _ in }
+            XCTAssertEqual(
+                try Data(contentsOf: aiNotesB.appendingPathComponent("fresh.md")),
+                Data("fresh".utf8)
+            )
+        }
+    }
+
+    func testDeleteVsConcurrentRemoteModifyAndAddPreservesRemoteChanges() throws {
+        try withTestServer { server, root in
+            let files = FileManager.default
+            let folderA = root.appendingPathComponent("client-a", isDirectory: true)
+            let stateA = root.appendingPathComponent("state-a", isDirectory: true)
+            let folderB = root.appendingPathComponent("client-b", isDirectory: true)
+            let stateB = root.appendingPathComponent("state-b", isDirectory: true)
+
+            let workerA = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folderA),
+                client: try makeClient(server), stateDirectory: stateA
+            )
+            workerA.control.setRunning(true)
+
+            let workerB = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folderB),
+                client: try makeClient(server), stateDirectory: stateB
+            )
+            workerB.control.setRunning(true)
+
+            let dirA = folderA.appendingPathComponent("AI Notes", isDirectory: true)
+            try files.createDirectory(at: dirA, withIntermediateDirectories: true)
+            try Data("v1".utf8).write(to: dirA.appendingPathComponent("edited.md"))
+            try Data("untouched".utf8).write(to: dirA.appendingPathComponent("old.md"))
+
+            try workerA.sync { _ in }
+            try workerB.sync { _ in }
+
+            // Client B edits edited.md and adds new.md, then syncs to server.
+            let dirB = folderB.appendingPathComponent("AI Notes", isDirectory: true)
+            try Data("v2 from B".utf8).write(to: dirB.appendingPathComponent("edited.md"))
+            try Data("added on B".utf8).write(to: dirB.appendingPathComponent("new.md"))
+            try workerB.sync { _ in }
+
+            // Client A deletes the entire AI Notes folder locally before seeing B's changes.
+            try files.removeItem(at: dirA)
+            try workerA.sync { _ in }
+            try workerB.sync { _ in }
+
+            // Remote edit and addition are preserved on both clients; untouched old.md is deleted everywhere.
+            XCTAssertEqual(try Data(contentsOf: dirA.appendingPathComponent("edited.md")), Data("v2 from B".utf8))
+            XCTAssertEqual(try Data(contentsOf: dirA.appendingPathComponent("new.md")), Data("added on B".utf8))
+            XCTAssertFalse(files.fileExists(atPath: dirA.appendingPathComponent("old.md").path))
+            XCTAssertFalse(files.fileExists(atPath: dirB.appendingPathComponent("old.md").path))
+        }
+    }
+
+    func testLegacyCheckpointUpgradeInfersFoldersAndAvoidsSpuriousDeletes() throws {
+        try withTestServer { server, root in
+            let files = FileManager.default
+            let folder = root.appendingPathComponent("client", isDirectory: true)
+            let state = root.appendingPathComponent("state", isDirectory: true)
+            let client = try makeClient(server)
+
+            // Upload two folders on remote: SyncedDir/a.md and UntrackedDir/b.md.
+            _ = try client.createFolder(path: "SyncedDir")
+            let tmpA = root.appendingPathComponent("a.md")
+            try Data("hello".utf8).write(to: tmpA)
+            let uploadedA = try client.uploadFile(remotePath: "SyncedDir/a.md", localFilePath: tmpA.path, ifMatch: nil)
+
+            _ = try client.createFolder(path: "UntrackedDir")
+            let tmpB = root.appendingPathComponent("b.md")
+            try Data("world".utf8).write(to: tmpB)
+            _ = try client.uploadFile(remotePath: "UntrackedDir/b.md", localFilePath: tmpB.path, ifMatch: nil)
+
+            // Create local folder and write a legacy Checkpoint JSON (no "folders" field) that only knew about SyncedDir/a.md.
+            try files.createDirectory(at: folder, withIntermediateDirectories: true)
+            try files.createDirectory(at: state, withIntermediateDirectories: true)
+            let legacyPayload: [String: Any] = [
+                "files": [
+                    "SyncedDir/a.md": [
+                        "sha256": uploadedA.item.sha256!,
+                        "etag": uploadedA.item.etag!,
+                        "version": uploadedA.item.version,
+                    ]
+                ],
+                "recent": [],
+            ]
+            let legacyData = try JSONSerialization.data(withJSONObject: legacyPayload)
+            let decoded = try JSONDecoder().decode(Checkpoint.self, from: legacyData)
+            XCTAssertEqual(decoded.folders, ["SyncedDir"])
+
+            let syncedDir = folder.appendingPathComponent("SyncedDir", isDirectory: true)
+            try files.createDirectory(at: syncedDir, withIntermediateDirectories: true)
+            try Data("hello".utf8).write(to: syncedDir.appendingPathComponent("a.md"))
+
+            let workerInit = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folder),
+                client: client, stateDirectory: state
+            )
+            workerInit.control.setRunning(true)
+            try workerInit.sync { _ in }
+
+            // Rewrite checkpoint to legacy format (no "folders" key, only SyncedDir/a.md) and drop UntrackedDir locally.
+            try files.removeItem(at: folder.appendingPathComponent("UntrackedDir"))
+            let checkpointURL = try XCTUnwrap(
+                try files.contentsOfDirectory(at: state, includingPropertiesForKeys: nil).first { $0.pathExtension == "json" }
+            )
+            try legacyData.write(to: checkpointURL)
+
+            // User deletes SyncedDir locally right after upgrading.
+            try files.removeItem(at: syncedDir)
+
+            let upgradedWorker = try SyncWorker(
+                configuration: DriveConfiguration(server: server, folder: folder),
+                client: client, stateDirectory: state
+            )
+            upgradedWorker.control.setRunning(true)
+            try upgradedWorker.sync { _ in }
+
+            // SyncedDir (and a.md) were deleted remotely; UntrackedDir (and b.md) were downloaded, NOT deleted!
+            XCTAssertFalse(files.fileExists(atPath: syncedDir.path))
+            XCTAssertEqual(
+                try Data(contentsOf: folder.appendingPathComponent("UntrackedDir/b.md")),
+                Data("world".utf8)
+            )
+            let remoteRoot = try client.listFiles(path: "", cursor: nil, limit: nil).items.map(\.path)
+            XCTAssertEqual(remoteRoot, ["UntrackedDir"])
         }
     }
 

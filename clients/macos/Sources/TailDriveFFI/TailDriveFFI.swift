@@ -1239,8 +1239,9 @@ public struct SyncEntry: Equatable, Hashable {
     public var kind: FileType
     public var sha256: String?
     /**
-     * Supply this on the local entry after a successful sync. It distinguishes
-     * one-sided edits from changes to both copies.
+     * Legacy per-entry baseline hash on local entries. Prefer passing
+     * `baseline_entries` to `plan_folder_sync` so folders and deletions are
+     * tracked as well.
      */
     public var lastSyncedSha256: String?
 
@@ -1248,8 +1249,9 @@ public struct SyncEntry: Equatable, Hashable {
     // declare one manually.
     public init(path: String, kind: FileType, sha256: String?,
         /**
-         * Supply this on the local entry after a successful sync. It distinguishes
-         * one-sided edits from changes to both copies.
+         * Legacy per-entry baseline hash on local entries. Prefer passing
+         * `baseline_entries` to `plan_folder_sync` so folders and deletions are
+         * tracked as well.
          */lastSyncedSha256: String?) {
         self.path = path
         self.kind = kind
@@ -1647,6 +1649,10 @@ public enum SyncAction: Equatable, Hashable {
     )
     case createLocalFolder(path: String
     )
+    case deleteRemote(path: String
+    )
+    case deleteLocal(path: String
+    )
     case conflict(path: String
     )
 
@@ -1682,7 +1688,13 @@ public struct FfiConverterTypeSyncAction: FfiConverterRustBuffer {
         case 4: return .createLocalFolder(path: try FfiConverterString.read(from: &buf)
         )
 
-        case 5: return .conflict(path: try FfiConverterString.read(from: &buf)
+        case 5: return .deleteRemote(path: try FfiConverterString.read(from: &buf)
+        )
+
+        case 6: return .deleteLocal(path: try FfiConverterString.read(from: &buf)
+        )
+
+        case 7: return .conflict(path: try FfiConverterString.read(from: &buf)
         )
 
         default: throw UniffiInternalError.unexpectedEnumCase
@@ -1713,8 +1725,18 @@ public struct FfiConverterTypeSyncAction: FfiConverterRustBuffer {
             FfiConverterString.write(path, into: &buf)
 
 
-        case let .conflict(path):
+        case let .deleteRemote(path):
             writeInt(&buf, Int32(5))
+            FfiConverterString.write(path, into: &buf)
+
+
+        case let .deleteLocal(path):
+            writeInt(&buf, Int32(6))
+            FfiConverterString.write(path, into: &buf)
+
+
+        case let .conflict(path):
+            writeInt(&buf, Int32(7))
             FfiConverterString.write(path, into: &buf)
 
         }
@@ -2101,12 +2123,13 @@ public func normalizeDrivePath(raw: String)throws  -> String  {
     )
 })
 }
-public func planFolderSync(localEntries: [SyncEntry], remoteEntries: [SyncEntry])throws  -> [SyncAction]  {
+public func planFolderSync(localEntries: [SyncEntry], remoteEntries: [SyncEntry], baselineEntries: [SyncEntry])throws  -> [SyncAction]  {
     return try  FfiConverterSequenceTypeSyncAction.lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
         uniffiCallStatus in
     uniffi_taildrive_ffi_fn_func_plan_folder_sync(
         FfiConverterSequenceTypeSyncEntry.lower(localEntries),
-        FfiConverterSequenceTypeSyncEntry.lower(remoteEntries),uniffiCallStatus
+        FfiConverterSequenceTypeSyncEntry.lower(remoteEntries),
+        FfiConverterSequenceTypeSyncEntry.lower(baselineEntries),uniffiCallStatus
     )
 })
 }
@@ -2135,7 +2158,7 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taildrive_ffi_checksum_func_normalize_drive_path() != 49433) {
         return InitializationResult.apiChecksumMismatch
     }
-    if (uniffi_taildrive_ffi_checksum_func_plan_folder_sync() != 11622) {
+    if (uniffi_taildrive_ffi_checksum_func_plan_folder_sync() != 469) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() != 40067) {
