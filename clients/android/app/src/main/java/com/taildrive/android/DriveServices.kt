@@ -16,6 +16,8 @@ import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
 import androidx.work.WorkManager
+import com.taildrive.ffi.TailDriveFfiClient
+import com.taildrive.ffi.uniffiEnsureInitialized
 import java.io.File
 import java.io.IOException
 import java.security.KeyStore
@@ -43,7 +45,8 @@ internal val Context.drive: DriveServices
 internal class DriveServices(val context: Context) {
     val credentials = CredentialStore(context)
     val network = TailnetMonitor(context)
-    val repositories = Repositories(context)
+    val ffiClients = FfiClientCache(context)
+    val repositories = Repositories(ffiClients)
     val transfers = TransferStore(context)
     val backup = BackupStore(context)
     val cache = DirectoryCache(context)
@@ -51,6 +54,97 @@ internal class DriveServices(val context: Context) {
     val uploadLock = Mutex()
 
     suspend fun activeConnection(): Connection? = withContext(Dispatchers.IO) { credentials.load() }
+}
+
+// TailDriveFfiClient methods block on a multi-thread Tokio runtime, so calls from
+// different threads may overlap. This lock only borrows, replaces, and closes clients.
+internal class ConnectionSessions<T : AutoCloseable>(private val open: (Connection) -> T) {
+    private val lock = Any()
+    private var current: Connection? = null
+    private val slots = HashMap<Connection, Slot<T>>()
+
+    private class Slot<T : AutoCloseable>(val session: T, var users: Int = 0)
+
+    fun <R> withSession(connection: Connection, action: (T) -> R): R {
+        val session = synchronized(lock) { borrow(connection) }
+        var failure: Throwable? = null
+        try {
+            return action(session)
+        } catch (thrown: Throwable) {
+            failure = thrown
+            throw thrown
+        } finally {
+            try {
+                synchronized(lock) { release(connection) }
+            } catch (closeFailure: Throwable) {
+                if (failure == null) throw closeFailure
+                failure.addSuppressed(closeFailure)
+            }
+        }
+    }
+
+    private fun borrow(connection: Connection): T {
+        val slot = slots.getOrPut(connection) { Slot(open(connection)) }
+        slot.users += 1
+        current = connection
+        try {
+            closeIdle()
+        } catch (failure: Throwable) {
+            slot.users -= 1
+            throw failure
+        }
+        return slot.session
+    }
+
+    private fun release(connection: Connection) {
+        val slot = slots[connection] ?: return
+        check(slot.users > 0) { "TailDrive session was released too many times." }
+        slot.users -= 1
+        closeIdle()
+    }
+
+    private fun closeIdle() {
+        val idle = slots.filter { (connection, slot) -> connection != current && slot.users == 0 }.keys.toList()
+        for (connection in idle) {
+            val slot = slots.remove(connection) ?: continue
+            slot.session.close()
+        }
+    }
+}
+
+internal class FfiClientCache(private val context: Context) {
+    private val loadLock = Any()
+    @Volatile private var loaded = false
+    private val sessions = ConnectionSessions<TailDriveFfiClient> { connection ->
+        ensureLoaded()
+        TailDriveFfiClient(connection.url, connection.token)
+    }
+
+    fun ensureLoaded() {
+        if (loaded) return
+        synchronized(loadLock) {
+            if (loaded) return
+            try {
+                System.loadLibrary("taildrive_ffi")
+                NativeTls.initialize(context)
+                uniffiEnsureInitialized()
+                loaded = true
+            } catch (failure: LinkageError) {
+                throw nativeLibraryFailure(failure)
+            } catch (failure: RuntimeException) {
+                throw nativeLibraryFailure(failure)
+            }
+        }
+    }
+
+    fun <T> withClient(connection: Connection, action: TailDriveFfiClient.() -> T): T =
+        sessions.withSession(connection) { client -> client.action() }
+
+    private fun nativeLibraryFailure(failure: Throwable) = DriveFailure(
+        "ERR_NATIVE",
+        "TailDrive native library failed to load: ${failure.message ?: failure.javaClass.simpleName}",
+        cause = failure,
+    )
 }
 
 internal class CredentialStore(context: Context) {
