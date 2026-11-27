@@ -50,6 +50,17 @@ bad = [("highlight", {**hl, "color": 9}), ("highlight", {**hl, "unknownTop": 1})
        ("position", {k: v for k, v in pos_pdf.items() if k != "extras"}),                   # extras missing
        ("envelope", env("position", PID, pos_pdf, deleted=True))]                           # positions are never deleted
 fail = 0
+# Shared with the server conformance tests (TailDrive reader module): spec/fixtures/sync/schema-samples.json.
+samples = {"description": "Schema sample instances from tools/validate.py; regenerate with WRITE_SAMPLES=1.",
+           "valid": [{"schema": n, "instance": i} for n, i in good],
+           "invalid": [{"schema": n, "instance": i} for n, i in bad]}
+sp = f"{SPEC}/fixtures/sync/schema-samples.json"
+if os.environ.get("WRITE_SAMPLES"):
+    os.makedirs(os.path.dirname(sp), exist_ok=True)
+    json.dump(samples, open(sp, "w", encoding="utf-8"), ensure_ascii=False, indent=1); open(sp, "a").write("\n")
+if os.path.exists(sp):
+    if json.load(open(sp, encoding="utf-8")) != samples: fail += 1; print("schema-samples.json is stale: run with WRITE_SAMPLES=1")
+    else: print(f"schema samples fixture ok: {len(good)} valid, {len(bad)} invalid")
 for n, inst in good:
     errs = list(V(f"{n}.schema.json").iter_errors(inst))
     if errs: fail += 1; print("UNEXPECTED FAIL", n, errs[0].message)

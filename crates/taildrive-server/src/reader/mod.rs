@@ -7,6 +7,8 @@
 mod blobs;
 mod error;
 mod store;
+#[cfg(test)]
+mod tests;
 pub mod wire;
 
 use std::{
