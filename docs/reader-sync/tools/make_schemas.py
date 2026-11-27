@@ -17,8 +17,8 @@ common = {
   "$schema": D2020, "$id": BASE + "common.schema.json", "title": "Common definitions",
   "description": "Shared leaf types for Reader sync records. See SYNC_SPEC.md §3.",
   "$defs": {
-    "recordId": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
-                 "description": "Client-made id, compared byte-exact. Word ids are 'w_' + WordStore.normalize(word) and may contain spaces/Unicode."},
+    "recordId": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^[^\\u0000-\\u0008\\u000a-\\u001f\\u007f-\\u0084\\u0086-\\u009f]+$",
+                 "description": "Client-made id, compared byte-exact. Word ids are 'w_' + WordStore.normalize(word) and may contain spaces, internal tab (U+0009), NEL (U+0085), and Unicode. Other control characters are rejected."},
     "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Bare lowercase hex SHA-256."},
     "fingerprint": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$", "description": "Reader fingerprint form: 'sha256:' + hex."},
     "kind": {"enum": ["book", "highlight", "note", "word", "lookup", "position"]},

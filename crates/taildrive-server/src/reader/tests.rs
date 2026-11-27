@@ -365,8 +365,11 @@ async fn merge_matrix_conflicts_and_resolution_over_http() {
     assert!(feed.iter().any(|e| e["id"] == "w_caf\u{e9}" && e["payload"]["definition"] == "nfc"));
     assert!(feed.iter().any(|e| e["id"] == "w_cafe\u{301}" && e["payload"]["definition"] == "nfd"));
     assert!(feed.iter().any(|e| e["id"] == "w_👨‍👩‍👧 family  x"));
-    let (status, _) = srv.push(&a, "u4", vec![change("u4", &book, "word", "w_tab\there", 0, word("x"))]).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "control characters are not allowed in ids");
+    let (status, body) = srv.push(&a, "u4", vec![change("u4", &book, "word", "w_tab\there", 0, word("x"))]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["results"][0]["status"], "applied");
+    let (status, body) = srv.push(&a, "u5", vec![change("u5", &book, "word", "w_line\nbreak", 0, word("x"))]).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "other control characters are still rejected: {body}");
     srv.stop().await;
 }
 
@@ -775,6 +778,87 @@ async fn schema_samples_and_every_server_output_validate() {
     assert!(feed.iter().any(|e| !e["conflict"].is_null()));
     for c in srv.get(&a, "/v1/conflicts").await.1["conflicts"].as_array().unwrap() {
         assert!(conflict.is_valid(c), "{c}");
+    }
+    srv.stop().await;
+}
+
+#[tokio::test]
+async fn word_id_fixture_ids_push_over_http_including_internal_tab() {
+    let fixture: Value = serde_json::from_str(
+        &std::fs::read_to_string(spec_dir().join("fixtures/word-id/normalize.json")).unwrap(),
+    )
+    .unwrap();
+    let cases = fixture["cases"].as_array().unwrap();
+    assert_eq!(cases.len(), 30);
+
+    let srv = fresh().await;
+    let a = srv.pair("dev_a", "macos").await;
+    let file = b"word-id fixture book";
+    let book = fp(file);
+    srv.register(&a, file, None, "pdf").await;
+    let word = |d: &str| json!({"word": d, "definition": "d", "learned": false, "extras": {}});
+    let highlight = json!({"color": 1, "quote": "q", "prefix": "", "suffix": "", "extras": {}});
+
+    // QA repro: a valid highlight plus the §12.1 "internal tab kept" word id in one batch.
+    let before = srv.seq().await;
+    let (status, body) = srv
+        .push(
+            &a,
+            "qa-tab",
+            vec![
+                change("h-tab", &book, "highlight", "h_ok", 0, highlight.clone()),
+                change("w-tab", &book, "word", "w_ice\tcream", 0, word("ice cream")),
+            ],
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["results"][0]["status"], "applied", "{body}");
+    assert_eq!(body["results"][1]["status"], "applied", "{body}");
+    assert_eq!(srv.seq().await, before + 2, "both records in the tab batch must apply");
+
+    // Push every non-null fixture wordId. "w_ice\tcream" is already the head, so that one is an edit.
+    let mut changes = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    let mut pushed = 0;
+    for (i, case) in cases.iter().enumerate() {
+        let Some(id) = case["wordId"].as_str() else { continue };
+        pushed += 1;
+        if !seen.insert(id.to_owned()) {
+            continue;
+        }
+        let name = case["name"].as_str().unwrap();
+        let base = if id == "w_ice\tcream" { 1 } else { 0 };
+        changes.push(change(&format!("wid{i}"), &book, "word", id, base, word(name)));
+    }
+    assert_eq!(pushed, 28, "two of the 30 cases have null wordId after trim");
+    let unique = changes.len();
+    let before = srv.seq().await;
+    let (status, body) = srv.push(&a, "wid-all", changes).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let results = body["results"].as_array().unwrap();
+    assert_eq!(results.len(), unique);
+    for r in results {
+        assert_eq!(r["status"], "applied", "{r}");
+    }
+    assert_eq!(srv.seq().await, before + unique as i64);
+
+    // Other control characters still reject the whole batch and do not advance seq.
+    let seq = srv.seq().await;
+    for (i, id) in ["w_x\0y", "w_x\ny", "w_x\ry", "w_x\u{7f}y", "w_x\u{0080}y"].iter().enumerate() {
+        let (status, body) = srv
+            .push(
+                &a,
+                &format!("bad{i}"),
+                vec![
+                    change(&format!("hbad{i}"), &book, "highlight", &format!("h_bad{i}"), 0, highlight.clone()),
+                    change(&format!("wbad{i}"), &book, "word", id, 0, word("x")),
+                ],
+            )
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{id:?} {body}");
+        assert_eq!(body["error"]["code"], "bad_request", "{body}");
+        assert_eq!(body["error"]["message"], "invalid record id", "{body}");
+        assert_eq!(srv.seq().await, seq, "rejected batch must not advance seq or apply the valid highlight");
     }
     srv.stop().await;
 }
