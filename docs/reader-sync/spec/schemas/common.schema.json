@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/common.schema.json",
+  "title": "Common definitions",
+  "description": "Shared leaf types for Reader sync records. See SYNC_SPEC.md §3.",
+  "$defs": {
+    "recordId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[^\\u0000-\\u001f\\u007f]+$",
+      "description": "Client-made id, compared byte-exact. Word ids are 'w_' + WordStore.normalize(word) and may contain spaces/Unicode."
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Bare lowercase hex SHA-256."
+    },
+    "fingerprint": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "description": "Reader fingerprint form: 'sha256:' + hex."
+    },
+    "kind": {
+      "enum": [
+        "book",
+        "highlight",
+        "note",
+        "word",
+        "lookup",
+        "position"
+      ]
+    },
+    "extras": {
+      "type": "object",
+      "description": "Unknown fields. Clients and server pass through untouched.",
+      "additionalProperties": true
+    },
+    "page": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "description": "1-based PDF page. Hint only."
+    },
+    "cfi": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "EPUB CFI, raw string. Hint only."
+    },
+    "section": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "quote": {
+      "type": "string",
+      "description": "Anchor of record."
+    },
+    "context": {
+      "type": "string",
+      "description": "prefix/suffix: anchor of record."
+    },
+    "rects": {
+      "type": "array",
+      "description": "Hint only. Per line [minX,minY,maxX,maxY], unrotated PDF page space, origin bottom-left. Empty for EPUB.",
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number"
+        },
+        "minItems": 4,
+        "maxItems": 4
+      }
+    },
+    "isoTime": {
+      "type": "string",
+      "description": "ISO-8601 timestamp (informational)."
+    },
+    "deviceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "changeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    }
+  }
+}

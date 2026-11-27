@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/word.schema.json",
+  "title": "Word payload",
+  "description": "WordEntry minus id and lookups (lookups are separate 'lookup' records). Record id = 'w_' + WordStore.normalize(word).",
+  "type": "object",
+  "properties": {
+    "word": {
+      "type": "string",
+      "minLength": 1
+    },
+    "definition": {
+      "type": "string"
+    },
+    "explanation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "explanationProvider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pronunciation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "partOfSpeech": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "learned": {
+      "type": "boolean",
+      "default": false
+    },
+    "extras": {
+      "$ref": "common.schema.json#/$defs/extras"
+    }
+  },
+  "required": [
+    "word",
+    "definition",
+    "learned",
+    "extras"
+  ],
+  "additionalProperties": false
+}

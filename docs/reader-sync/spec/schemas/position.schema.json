@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/position.schema.json",
+  "title": "Reading position payload",
+  "description": "One per (book, device); id = 'p_' + bookId + '_' + deviceId. Only that device writes it. Newest = highest server seq, never device clock.",
+  "type": "object",
+  "properties": {
+    "bookId": {
+      "$ref": "common.schema.json#/$defs/fingerprint"
+    },
+    "deviceId": {
+      "$ref": "common.schema.json#/$defs/deviceId"
+    },
+    "locator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "page"
+          ],
+          "properties": {
+            "format": {
+              "const": "pdf"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "1-based page, as in highlights."
+            },
+            "point": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "x",
+                "y"
+              ],
+              "description": "Optional point in unrotated PDF page space, origin bottom-left.",
+              "properties": {
+                "x": {
+                  "type": "number"
+                },
+                "y": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "format",
+            "cfi"
+          ],
+          "properties": {
+            "format": {
+              "const": "epub"
+            },
+            "cfi": {
+              "type": "string",
+              "minLength": 1
+            },
+            "progression": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            }
+          }
+        }
+      ]
+    },
+    "extras": {
+      "$ref": "common.schema.json#/$defs/extras"
+    }
+  },
+  "required": [
+    "bookId",
+    "deviceId",
+    "locator",
+    "extras"
+  ],
+  "additionalProperties": false
+}

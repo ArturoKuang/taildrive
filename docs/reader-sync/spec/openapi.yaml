@@ -1,0 +1,468 @@
+openapi: 3.1.0
+info:
+  title: Reader Sync Server
+  version: 1.0.0
+  description: |
+    v1 HTTP API for syncing Reader records (book, highlight, note, word, lookup, position) and book files.
+    Normative prose: SYNC_SPEC.md (rev 3). Record shapes: ./schemas/*.schema.json.
+    Plain HTTP inside the tailnet only; bound to the Tailscale IP and 127.0.0.1.
+servers:
+  - url: http://100.97.87.111:8788
+    description: Mac mini over Tailscale
+  - url: http://127.0.0.1:8788
+    description: Loopback on the Mac mini
+security:
+  - bearer: []
+tags:
+  - name: system
+  - name: pairing
+  - name: records
+  - name: conflicts
+  - name: books
+  - name: blobs
+
+paths:
+  /v1/health:
+    get:
+      tags: [system]
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Server is up.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Health"}
+
+  /v1/pairing/tokens:
+    post:
+      tags: [pairing]
+      operationId: issuePairingToken
+      description: Requires a mac device credential, or a request from 127.0.0.1 (no auth).
+      security: [{bearer: []}, {}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [kind]
+              properties:
+                kind: {enum: [mac, phone]}
+      responses:
+        "200":
+          description: Token issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token, expiresAt, qr]
+                properties:
+                  token: {type: string}
+                  expiresAt: {type: string, format: date-time}
+                  qr: {type: string, description: "readersync://pair?v=1&host=…&port=…&token=…&server=…"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+
+  /v1/pairing/redeem:
+    post:
+      tags: [pairing]
+      operationId: redeemPairingToken
+      description: Retry-safe. Same token + same deviceId before expiry rotates the credential.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, deviceId, name, platform]
+              properties:
+                token: {type: string}
+                deviceId: {type: string, minLength: 1, maxLength: 128}
+                name: {type: string}
+                platform: {enum: [macos, android, ios]}
+                appVersion: {type: string}
+      responses:
+        "200":
+          description: Device paired.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [deviceId, credential, serverId, kind]
+                properties:
+                  deviceId: {type: string}
+                  credential: {type: string}
+                  serverId: {type: string}
+                  kind: {enum: [mac, phone]}
+        "403": {$ref: "#/components/responses/Error"}
+        "429": {$ref: "#/components/responses/Error"}
+
+  /v1/devices:
+    get:
+      tags: [pairing]
+      operationId: listDevices
+      description: Any paired device. Returns names and kinds only (no credentials), so clients can name the device behind a position record's deviceId.
+      responses:
+        "200":
+          description: Devices.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [devices]
+                properties:
+                  devices:
+                    type: array
+                    items: {$ref: "#/components/schemas/Device"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+
+  /v1/devices/{deviceId}:
+    delete:
+      tags: [pairing]
+      operationId: revokeDevice
+      description: mac devices only. Idempotent.
+      parameters:
+        - {name: deviceId, in: path, required: true, schema: {type: string}}
+      responses:
+        "204": {description: Revoked (or already revoked).}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+
+  /v1/changes:
+    post:
+      tags: [records]
+      operationId: pushChanges
+      description: |
+        One transaction per batch. Idempotent by batchId and by each changeId.
+        At most one change per (bookId, kind, id) per batch; kind "book" is rejected (use POST /v1/books).
+        kind "position": id must be p_<bookId>_<own deviceId> (else not_owner), baseVersion is ignored, deletes are
+        rejected, and it never opens a conflict. Newest position = highest seq.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/PushBatch"}
+      responses:
+        "200":
+          description: Per-change results (replays return the stored response byte for byte).
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PushResponse"}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+        "413": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [records]
+      operationId: pullChanges
+      description: Latest state of every record whose last seq > since, ascending by seq. Tombstones and open conflicts included.
+      parameters:
+        - {name: since, in: query, required: true, schema: {type: integer, minimum: 0}}
+        - {name: limit, in: query, required: false, schema: {type: integer, minimum: 1, maximum: 1000, default: 500}}
+      responses:
+        "200":
+          description: One page of the feed.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/PullPage"}
+        "401": {$ref: "#/components/responses/Error"}
+
+  /v1/conflicts:
+    get:
+      tags: [conflicts]
+      operationId: listConflicts
+      parameters:
+        - {name: bookId, in: query, required: false, schema: {$ref: "./schemas/common.schema.json#/$defs/fingerprint"}}
+      responses:
+        "200":
+          description: Open conflicts.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [conflicts]
+                properties:
+                  conflicts:
+                    type: array
+                    items: {$ref: "./schemas/conflict.schema.json"}
+        "401": {$ref: "#/components/responses/Error"}
+
+  /v1/conflicts/{conflictId}/resolve:
+    post:
+      tags: [conflicts]
+      operationId: resolveConflict
+      description: Client-agnostic. Writes head+1 from the given state and closes the conflict. Idempotent by changeId.
+      parameters:
+        - {name: conflictId, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [changeId, baseVersion, deleted, payload]
+              properties:
+                changeId: {$ref: "./schemas/common.schema.json#/$defs/changeId"}
+                baseVersion: {type: integer, minimum: 1, description: Current head version.}
+                deleted: {type: boolean}
+                payload: {type: [object, "null"]}
+      responses:
+        "200":
+          description: Resolved.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, version, seq]
+                properties:
+                  status: {const: applied}
+                  version: {type: integer}
+                  seq: {type: integer}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+
+  /v1/books:
+    get:
+      tags: [books]
+      operationId: listBooks
+      responses:
+        "200":
+          description: Full book list (phone downloads a book on open).
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [books]
+                properties:
+                  books:
+                    type: array
+                    items: {$ref: "#/components/schemas/BookListItem"}
+        "401": {$ref: "#/components/responses/Error"}
+    post:
+      tags: [books]
+      operationId: registerBook
+      description: |
+        Rules, in order: (1) sha256 already a file of a book -> existing; (2) non-empty docId matches a live book of the
+        same format -> attach file to it; (3) else create with bookId = "sha256:" + sha256. Idempotent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sha256, size, format, title, filename]
+              properties:
+                sha256: {$ref: "./schemas/common.schema.json#/$defs/sha256"}
+                size: {type: integer, minimum: 0}
+                format: {enum: [pdf, epub]}
+                docId: {type: [string, "null"]}
+                title: {type: string}
+                filename: {type: string}
+      responses:
+        "200":
+          description: Registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, bookId, book]
+                properties:
+                  status: {enum: [created, attached, existing]}
+                  bookId: {$ref: "./schemas/common.schema.json#/$defs/fingerprint"}
+                  book: {$ref: "./schemas/envelope.schema.json"}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+
+  /v1/blobs/{sha256}:
+    parameters:
+      - {name: sha256, in: path, required: true, schema: {$ref: "./schemas/common.schema.json#/$defs/sha256"}}
+    head:
+      tags: [blobs]
+      operationId: headBlob
+      responses:
+        "200":
+          description: Blob complete.
+          headers:
+            Content-Length: {schema: {type: integer}}
+        "404":
+          description: Not complete; Upload-Offset is bytes already received (0 if none).
+          headers:
+            Upload-Offset: {schema: {type: integer}, required: true}
+    put:
+      tags: [blobs]
+      operationId: putBlob
+      description: Whole body, or resume with Content-Range bytes start-end/total where start == current Upload-Offset. Verified by SHA-256 on completion.
+      parameters:
+        - {name: Content-Range, in: header, required: false, schema: {type: string, example: "bytes 1048576-2097151/52428800"}}
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema: {type: string, contentMediaType: application/octet-stream}
+      responses:
+        "200": {description: Already present (body not read).}
+        "201": {description: Complete and verified.}
+        "202":
+          description: Partial; continue from Upload-Offset.
+          headers:
+            Upload-Offset: {schema: {type: integer}, required: true}
+        "409":
+          description: Offset mismatch or another upload in progress.
+          headers:
+            Upload-Offset: {schema: {type: integer}, required: true}
+        "413": {$ref: "#/components/responses/Error"}
+        "422": {$ref: "#/components/responses/Error"}
+    get:
+      tags: [blobs]
+      operationId: getBlob
+      parameters:
+        - {name: Range, in: header, required: false, schema: {type: string, example: "bytes=0-1048575"}}
+        - {name: If-Range, in: header, required: false, schema: {type: string}}
+      responses:
+        "200":
+          description: Whole blob.
+          headers:
+            ETag: {schema: {type: string}}
+            Accept-Ranges: {schema: {const: bytes}}
+          content:
+            application/octet-stream:
+              schema: {type: string, contentMediaType: application/octet-stream}
+        "206":
+          description: Partial content.
+          headers:
+            Content-Range: {schema: {type: string}}
+          content:
+            application/octet-stream:
+              schema: {type: string, contentMediaType: application/octet-stream}
+        "404": {$ref: "#/components/responses/Error"}
+        "416": {$ref: "#/components/responses/Error"}
+
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+      description: Per-device credential from /v1/pairing/redeem.
+  responses:
+    Error:
+      description: Error.
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/Error"}
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              enum: [unauthorized, forbidden, not_found, bad_request, change_id_reused, hash_mismatch,
+                     range_not_satisfiable, too_large, already_resolved, stale_base, upload_offset_mismatch,
+                     rate_limited, server_busy, not_owner]
+            message: {type: string}
+    Health:
+      type: object
+      required: [ok, serverId, serverVersion, protocol, seq]
+      properties:
+        ok: {type: boolean}
+        serverId: {type: string}
+        serverVersion: {type: string}
+        protocol: {type: integer}
+        seq: {type: integer, minimum: 0}
+    Device:
+      type: object
+      required: [deviceId, name, platform, kind, createdAt, revoked]
+      properties:
+        deviceId: {type: string}
+        name: {type: string}
+        platform: {type: string}
+        kind: {enum: [mac, phone]}
+        createdAt: {type: string, format: date-time}
+        lastSeenAt: {type: [string, "null"], format: date-time}
+        revoked: {type: boolean}
+    Change:
+      type: object
+      additionalProperties: false
+      required: [changeId, bookId, kind, id, baseVersion, deleted, payload]
+      properties:
+        changeId: {$ref: "./schemas/common.schema.json#/$defs/changeId"}
+        bookId: {$ref: "./schemas/common.schema.json#/$defs/fingerprint"}
+        kind: {enum: [highlight, note, word, lookup, position]}
+        id: {$ref: "./schemas/common.schema.json#/$defs/recordId"}
+        baseVersion: {type: integer, minimum: 0}
+        deleted: {type: boolean}
+        clientTime: {type: [string, "null"]}
+        payload: {type: [object, "null"], description: "Opaque to the server; validated by clients against ./schemas/<kind>.schema.json."}
+    PushBatch:
+      type: object
+      additionalProperties: false
+      required: [batchId, changes]
+      properties:
+        batchId: {type: string, minLength: 1, maxLength: 128}
+        changes:
+          type: array
+          maxItems: 500
+          items: {$ref: "#/components/schemas/Change"}
+    ChangeResult:
+      type: object
+      required: [changeId, status]
+      properties:
+        changeId: {type: string}
+        status: {enum: [applied, noop, conflict, rejected]}
+        version: {type: integer}
+        seq: {type: integer}
+        conflictId: {type: string}
+        error: {$ref: "#/components/schemas/Error/properties/error"}
+    PushResponse:
+      type: object
+      required: [batchId, seq, results]
+      properties:
+        batchId: {type: string}
+        seq: {type: integer}
+        results:
+          type: array
+          items: {$ref: "#/components/schemas/ChangeResult"}
+    PullPage:
+      type: object
+      required: [changes, cursor, hasMore, serverId]
+      properties:
+        changes:
+          type: array
+          items: {$ref: "./schemas/envelope.schema.json"}
+        cursor: {type: integer, minimum: 0}
+        hasMore: {type: boolean}
+        serverId: {type: string}
+    BookListItem:
+      type: object
+      required: [bookId, title, filename, format, sha256, size, hasBlob, files, version, seq]
+      properties:
+        bookId: {$ref: "./schemas/common.schema.json#/$defs/fingerprint"}
+        title: {type: string}
+        filename: {type: string}
+        format: {enum: [pdf, epub]}
+        docId: {type: [string, "null"]}
+        sha256: {$ref: "./schemas/common.schema.json#/$defs/sha256"}
+        size: {type: integer}
+        hasBlob: {type: boolean}
+        files:
+          type: array
+          items:
+            type: object
+            required: [sha256, size, hasBlob]
+            properties:
+              sha256: {$ref: "./schemas/common.schema.json#/$defs/sha256"}
+              size: {type: integer}
+              hasBlob: {type: boolean}
+        version: {type: integer}
+        seq: {type: integer}

@@ -1,0 +1,618 @@
+{
+  "wordIdRule": "w_ + word.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()",
+  "platform": "Version 26.2 (Build 25C56)",
+  "cases": [
+    {
+      "expectedCodepoints": [
+        "U+0068",
+        "U+0065",
+        "U+006C",
+        "U+006C",
+        "U+006F"
+      ],
+      "input": "HeLLo",
+      "wordId": "w_hello",
+      "name": "mixed case ASCII",
+      "inputCodepoints": [
+        "U+0048",
+        "U+0065",
+        "U+004C",
+        "U+004C",
+        "U+006F"
+      ],
+      "expected": "hello"
+    },
+    {
+      "expectedCodepoints": [
+        "U+00E9",
+        "U+0063",
+        "U+006F",
+        "U+006C",
+        "U+0065"
+      ],
+      "input": "ÉCOLE",
+      "wordId": "w_école",
+      "name": "ÉCOLE uppercase accented",
+      "inputCodepoints": [
+        "U+00C9",
+        "U+0043",
+        "U+004F",
+        "U+004C",
+        "U+0045"
+      ],
+      "expected": "école"
+    },
+    {
+      "expectedCodepoints": [
+        "U+03BF",
+        "U+03B4",
+        "U+03BF",
+        "U+03C3"
+      ],
+      "input": "ΟΔΟΣ",
+      "wordId": "w_οδοσ",
+      "name": "final sigma ΟΔΟΣ",
+      "inputCodepoints": [
+        "U+039F",
+        "U+0394",
+        "U+039F",
+        "U+03A3"
+      ],
+      "expected": "οδοσ"
+    },
+    {
+      "expectedCodepoints": [
+        "U+03B1",
+        "U+03C3",
+        "U+03B1"
+      ],
+      "input": "ΑΣΑ",
+      "wordId": "w_ασα",
+      "name": "sigma Σ mid-word",
+      "inputCodepoints": [
+        "U+0391",
+        "U+03A3",
+        "U+0391"
+      ],
+      "expected": "ασα"
+    },
+    {
+      "expectedCodepoints": [
+        "U+03B1",
+        "U+03C3",
+        "U+03B1"
+      ],
+      "input": "ασα",
+      "wordId": "w_ασα",
+      "name": "lowercase σ mid-word",
+      "inputCodepoints": [
+        "U+03B1",
+        "U+03C3",
+        "U+03B1"
+      ],
+      "expected": "ασα"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0069",
+        "U+0307",
+        "U+0073",
+        "U+0074",
+        "U+0061",
+        "U+006E",
+        "U+0062",
+        "U+0075",
+        "U+006C"
+      ],
+      "input": "İSTANBUL",
+      "wordId": "w_i̇stanbul",
+      "name": "Turkish dotted İ mid-word",
+      "inputCodepoints": [
+        "U+0130",
+        "U+0053",
+        "U+0054",
+        "U+0041",
+        "U+004E",
+        "U+0042",
+        "U+0055",
+        "U+004C"
+      ],
+      "expected": "i̇stanbul"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0073",
+        "U+0074",
+        "U+0072",
+        "U+0061",
+        "U+00DF",
+        "U+0065"
+      ],
+      "input": "Straße",
+      "wordId": "w_straße",
+      "name": "German ß mid-word",
+      "inputCodepoints": [
+        "U+0053",
+        "U+0074",
+        "U+0072",
+        "U+0061",
+        "U+00DF",
+        "U+0065"
+      ],
+      "expected": "straße"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0073",
+        "U+0074",
+        "U+0072",
+        "U+0061",
+        "U+00DF",
+        "U+0065"
+      ],
+      "input": "STRAẞE",
+      "wordId": "w_straße",
+      "name": "capital ẞ",
+      "inputCodepoints": [
+        "U+0053",
+        "U+0054",
+        "U+0052",
+        "U+0041",
+        "U+1E9E",
+        "U+0045"
+      ],
+      "expected": "straße"
+    },
+    {
+      "expectedCodepoints": [
+        "U+FEFF",
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "input": "﻿word",
+      "wordId": "w_﻿word",
+      "name": "leading U+FEFF",
+      "inputCodepoints": [
+        "U+FEFF",
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "expected": "﻿word"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "input": "word",
+      "wordId": "w_word",
+      "name": "trailing U+0085 NEL",
+      "inputCodepoints": [
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064",
+        "U+0085"
+      ],
+      "expected": "word"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "input": " word ",
+      "wordId": "w_word",
+      "name": "leading and trailing U+00A0",
+      "inputCodepoints": [
+        "U+00A0",
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064",
+        "U+00A0"
+      ],
+      "expected": "word"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0069",
+        "U+0063",
+        "U+0065",
+        "U+00A0",
+        "U+0063",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "input": "ice cream",
+      "wordId": "w_ice cream",
+      "name": "U+00A0 internal",
+      "inputCodepoints": [
+        "U+0069",
+        "U+0063",
+        "U+0065",
+        "U+00A0",
+        "U+0063",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "expected": "ice cream"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "input": " word　",
+      "wordId": "w_word",
+      "name": "U+2028 and U+3000 around",
+      "inputCodepoints": [
+        "U+2028",
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064",
+        "U+3000"
+      ],
+      "expected": "word"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0077",
+        "U+006F",
+        "U+0072",
+        "U+0064"
+      ],
+      "input": "\t\nWord\r\n\t",
+      "wordId": "w_word",
+      "name": "tabs and newlines around",
+      "inputCodepoints": [
+        "U+0009",
+        "U+000A",
+        "U+0057",
+        "U+006F",
+        "U+0072",
+        "U+0064",
+        "U+000D",
+        "U+000A",
+        "U+0009"
+      ],
+      "expected": "word"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0069",
+        "U+0063",
+        "U+0065",
+        "U+0020",
+        "U+0020",
+        "U+0063",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "input": "Ice  Cream",
+      "wordId": "w_ice  cream",
+      "name": "internal double space kept",
+      "inputCodepoints": [
+        "U+0049",
+        "U+0063",
+        "U+0065",
+        "U+0020",
+        "U+0020",
+        "U+0043",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "expected": "ice  cream"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0069",
+        "U+0063",
+        "U+0065",
+        "U+0009",
+        "U+0063",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "input": "ice\tcream",
+      "wordId": "w_ice\tcream",
+      "name": "internal tab kept",
+      "inputCodepoints": [
+        "U+0069",
+        "U+0063",
+        "U+0065",
+        "U+0009",
+        "U+0063",
+        "U+0072",
+        "U+0065",
+        "U+0061",
+        "U+006D"
+      ],
+      "expected": "ice\tcream"
+    },
+    {
+      "expectedCodepoints": [
+        "U+1F600"
+      ],
+      "input": "😀",
+      "wordId": "w_😀",
+      "name": "emoji",
+      "inputCodepoints": [
+        "U+1F600"
+      ],
+      "expected": "😀"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0066",
+        "U+0061",
+        "U+006D",
+        "U+0069",
+        "U+006C",
+        "U+0079",
+        "U+1F468",
+        "U+200D",
+        "U+1F469",
+        "U+200D",
+        "U+1F467"
+      ],
+      "input": " Family👨‍👩‍👧 ",
+      "wordId": "w_family👨‍👩‍👧",
+      "name": "emoji with ZWJ and text",
+      "inputCodepoints": [
+        "U+0020",
+        "U+0046",
+        "U+0061",
+        "U+006D",
+        "U+0069",
+        "U+006C",
+        "U+0079",
+        "U+1F468",
+        "U+200D",
+        "U+1F469",
+        "U+200D",
+        "U+1F467",
+        "U+0020"
+      ],
+      "expected": "family👨‍👩‍👧"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0063",
+        "U+0061",
+        "U+0066",
+        "U+00E9"
+      ],
+      "input": "café",
+      "wordId": "w_café",
+      "name": "NFC é (U+00E9)",
+      "inputCodepoints": [
+        "U+0063",
+        "U+0061",
+        "U+0066",
+        "U+00E9"
+      ],
+      "expected": "café"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0063",
+        "U+0061",
+        "U+0066",
+        "U+0065",
+        "U+0301"
+      ],
+      "input": "café",
+      "wordId": "w_café",
+      "name": "NFD é (e + U+0301)",
+      "inputCodepoints": [
+        "U+0063",
+        "U+0061",
+        "U+0066",
+        "U+0065",
+        "U+0301"
+      ],
+      "expected": "café"
+    },
+    {
+      "expectedCodepoints": [
+        "U+6F22",
+        "U+5B57"
+      ],
+      "input": "漢字",
+      "wordId": "w_漢字",
+      "name": "CJK",
+      "inputCodepoints": [
+        "U+6F22",
+        "U+5B57"
+      ],
+      "expected": "漢字"
+    },
+    {
+      "expectedCodepoints": [
+        "U+8AAD",
+        "U+66F8"
+      ],
+      "input": "　読書　",
+      "wordId": "w_読書",
+      "name": "CJK with ideographic space",
+      "inputCodepoints": [
+        "U+3000",
+        "U+8AAD",
+        "U+66F8",
+        "U+3000"
+      ],
+      "expected": "読書"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0064",
+        "U+006F",
+        "U+006E",
+        "U+0027",
+        "U+0074"
+      ],
+      "input": "Don't",
+      "wordId": "w_don't",
+      "name": "apostrophe",
+      "inputCodepoints": [
+        "U+0044",
+        "U+006F",
+        "U+006E",
+        "U+0027",
+        "U+0074"
+      ],
+      "expected": "don't"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0064",
+        "U+006F",
+        "U+006E",
+        "U+2019",
+        "U+0074"
+      ],
+      "input": "Don’t",
+      "wordId": "w_don’t",
+      "name": "curly apostrophe",
+      "inputCodepoints": [
+        "U+0044",
+        "U+006F",
+        "U+006E",
+        "U+2019",
+        "U+0074"
+      ],
+      "expected": "don’t"
+    },
+    {
+      "expectedCodepoints": [
+        "U+0077",
+        "U+0065",
+        "U+006C",
+        "U+006C",
+        "U+002D",
+        "U+006B",
+        "U+006E",
+        "U+006F",
+        "U+0077",
+        "U+006E"
+      ],
+      "input": "Well-Known",
+      "wordId": "w_well-known",
+      "name": "hyphen",
+      "inputCodepoints": [
+        "U+0057",
+        "U+0065",
+        "U+006C",
+        "U+006C",
+        "U+002D",
+        "U+004B",
+        "U+006E",
+        "U+006F",
+        "U+0077",
+        "U+006E"
+      ],
+      "expected": "well-known"
+    },
+    {
+      "expectedCodepoints": [],
+      "input": "",
+      "wordId": null,
+      "name": "empty string",
+      "inputCodepoints": [],
+      "expected": ""
+    },
+    {
+      "expectedCodepoints": [],
+      "input": " \t\n 　",
+      "wordId": null,
+      "name": "only whitespace",
+      "inputCodepoints": [
+        "U+0020",
+        "U+0009",
+        "U+000A",
+        "U+00A0",
+        "U+3000",
+        "U+0085"
+      ],
+      "expected": ""
+    },
+    {
+      "name": "lowercase final ς kept (λόγος)",
+      "input": "λόγος",
+      "inputCodepoints": [
+        "U+03BB",
+        "U+03CC",
+        "U+03B3",
+        "U+03BF",
+        "U+03C2"
+      ],
+      "expected": "λόγος",
+      "expectedCodepoints": [
+        "U+03BB",
+        "U+03CC",
+        "U+03B3",
+        "U+03BF",
+        "U+03C2"
+      ],
+      "wordId": "w_λόγος"
+    },
+    {
+      "name": "uppercase with trailing lowercase ς (ΛΌΓΟς)",
+      "input": "ΛΌΓΟς",
+      "inputCodepoints": [
+        "U+039B",
+        "U+038C",
+        "U+0393",
+        "U+039F",
+        "U+03C2"
+      ],
+      "expected": "λόγος",
+      "expectedCodepoints": [
+        "U+03BB",
+        "U+03CC",
+        "U+03B3",
+        "U+03BF",
+        "U+03C2"
+      ],
+      "wordId": "w_λόγος"
+    },
+    {
+      "name": "lone lowercase ς",
+      "input": "ς",
+      "inputCodepoints": [
+        "U+03C2"
+      ],
+      "expected": "ς",
+      "expectedCodepoints": [
+        "U+03C2"
+      ],
+      "wordId": "w_ς"
+    }
+  ],
+  "swiftVersion": "Apple Swift version 6.2.3 (swiftlang-6.2.3.3.21)",
+  "description": "Word-id normalization vectors generated by running Reader's WordStore.normalize on macOS. expected = normalize(input). wordId = \"w_\" + normalize(input), or null when Reader creates no word (input empty after trimming). No Unicode normalization is applied: NFC and NFD give different ids.",
+  "reader": "arturo-kuang/reader@2163c4d",
+  "source": "Packages/ReaderCore/Sources/ReaderCore/Words.swift:64-66 (normalize, copied verbatim); App/Reader/ReaderSession.swift:481 (id), :457-458 (empty guard); reader commit 2163c4d"
+}

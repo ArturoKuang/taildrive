@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/book.schema.json",
+  "title": "Book payload (server-written)",
+  "description": "Written only by POST /v1/books. bookId (envelope id) = first-registered fingerprint and never changes.",
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string"
+    },
+    "filename": {
+      "type": "string"
+    },
+    "format": {
+      "enum": [
+        "pdf",
+        "epub"
+      ]
+    },
+    "docId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "description": "pdfID (PDF trailer /ID, first entry, lowercase hex) or epubID (dc:identifier)."
+    },
+    "files": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sha256": {
+            "$ref": "common.schema.json#/$defs/sha256"
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "addedAt": {
+            "$ref": "common.schema.json#/$defs/isoTime"
+          }
+        },
+        "required": [
+          "sha256",
+          "size",
+          "addedAt"
+        ]
+      }
+    },
+    "currentSha256": {
+      "$ref": "common.schema.json#/$defs/sha256"
+    },
+    "extras": {
+      "$ref": "common.schema.json#/$defs/extras"
+    }
+  },
+  "required": [
+    "title",
+    "filename",
+    "format",
+    "files",
+    "currentSha256",
+    "extras"
+  ],
+  "additionalProperties": false
+}

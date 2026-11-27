@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/lookup.schema.json",
+  "title": "Lookup payload",
+  "description": "LookupEntry minus id (md comment key 'lookup'), plus wordId. Reader regroups into WordEntry.lookups by wordId, ordered by date then id.",
+  "type": "object",
+  "properties": {
+    "wordId": {
+      "$ref": "common.schema.json#/$defs/recordId"
+    },
+    "page": {
+      "$ref": "common.schema.json#/$defs/page"
+    },
+    "cfi": {
+      "$ref": "common.schema.json#/$defs/cfi"
+    },
+    "section": {
+      "$ref": "common.schema.json#/$defs/section"
+    },
+    "quote": {
+      "$ref": "common.schema.json#/$defs/quote"
+    },
+    "prefix": {
+      "$ref": "common.schema.json#/$defs/context"
+    },
+    "suffix": {
+      "$ref": "common.schema.json#/$defs/context"
+    },
+    "sentence": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string"
+    },
+    "extras": {
+      "$ref": "common.schema.json#/$defs/extras"
+    }
+  },
+  "required": [
+    "wordId",
+    "quote",
+    "prefix",
+    "suffix",
+    "sentence",
+    "date",
+    "extras"
+  ],
+  "additionalProperties": false
+}

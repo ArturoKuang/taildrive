@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/conflict.schema.json",
+  "title": "Conflict",
+  "description": "Open conflict on one record key. Sides are never pairwise identical (identical content is not a conflict).",
+  "type": "object",
+  "properties": {
+    "conflictId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "bookId": {
+      "$ref": "common.schema.json#/$defs/fingerprint"
+    },
+    "kind": {
+      "$ref": "common.schema.json#/$defs/kind"
+    },
+    "id": {
+      "$ref": "common.schema.json#/$defs/recordId"
+    },
+    "baseVersion": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "base": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "deleted": {
+              "type": "boolean"
+            },
+            "payload": {
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          },
+          "required": [
+            "deleted",
+            "payload"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sides": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "changeId": {
+            "$ref": "common.schema.json#/$defs/changeId"
+          },
+          "deviceId": {
+            "$ref": "common.schema.json#/$defs/deviceId"
+          },
+          "version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Head version this side became, or null if never head."
+          },
+          "deleted": {
+            "type": "boolean"
+          },
+          "payload": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "clientTime": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "changeId",
+          "deviceId",
+          "version",
+          "deleted",
+          "payload"
+        ]
+      }
+    },
+    "openedSeq": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "conflictId",
+    "bookId",
+    "kind",
+    "id",
+    "baseVersion",
+    "base",
+    "sides",
+    "openedSeq"
+  ],
+  "additionalProperties": false
+}

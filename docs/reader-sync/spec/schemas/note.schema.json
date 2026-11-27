@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://spec.reader.arturo-kuang/schemas/note.schema.json",
+  "title": "Note payload",
+  "description": "NoteEntry minus id. highlightId is an optional back-reference; highlight.noteId wins on disagreement.",
+  "type": "object",
+  "properties": {
+    "page": {
+      "$ref": "common.schema.json#/$defs/page"
+    },
+    "cfi": {
+      "$ref": "common.schema.json#/$defs/cfi"
+    },
+    "section": {
+      "$ref": "common.schema.json#/$defs/section"
+    },
+    "quote": {
+      "$ref": "common.schema.json#/$defs/quote"
+    },
+    "prefix": {
+      "$ref": "common.schema.json#/$defs/context"
+    },
+    "suffix": {
+      "$ref": "common.schema.json#/$defs/context"
+    },
+    "created": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "updated": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "ai": {
+      "type": "boolean",
+      "default": false
+    },
+    "provider": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "scope": {
+      "type": "string",
+      "default": "passage"
+    },
+    "body": {
+      "type": "string"
+    },
+    "highlightId": {
+      "anyOf": [
+        {
+          "$ref": "common.schema.json#/$defs/recordId"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "extras": {
+      "$ref": "common.schema.json#/$defs/extras"
+    }
+  },
+  "required": [
+    "quote",
+    "prefix",
+    "suffix",
+    "ai",
+    "scope",
+    "body",
+    "extras"
+  ],
+  "additionalProperties": false
+}
