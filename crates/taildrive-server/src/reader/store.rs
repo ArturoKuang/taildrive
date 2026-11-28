@@ -487,9 +487,13 @@ fn parse_change(raw: &RawValue) -> SyncResult<Change> {
     if input.base_version < 0 {
         return Err(SyncError::bad("baseVersion must be >= 0"));
     }
+    let payload = payload_text(input.payload)?;
+    if !input.deleted && payload.is_none() {
+        return Err(SyncError::bad("a live change needs a payload"));
+    }
     let value: Value = serde_json::from_str(raw.get()).map_err(|e| SyncError::bad(e.to_string()))?;
     Ok(Change {
-        payload: payload_text(input.payload)?,
+        payload,
         hash: sha256_hex(wire::canonical_bytes(&value)),
         change_id: input.change_id,
         book_id: input.book_id,
@@ -1003,7 +1007,10 @@ pub(crate) fn resolve(conn: &mut Connection, device_id: &str, conflict_id: &str,
         return Err(SyncError::bad("a live resolution needs a payload"));
     }
     let whole: Value = serde_json::from_slice(body).map_err(|e| SyncError::bad(e.to_string()))?;
-    let hash = sha256_hex(wire::canonical_bytes(&whole));
+    let hash = sha256_hex(wire::canonical_bytes(&json!({
+        "body": whole,
+        "conflictId": conflict_id,
+    })));
     let tx = conn.transaction()?;
     if let Some((prior, result)) = tx
         .query_row(
