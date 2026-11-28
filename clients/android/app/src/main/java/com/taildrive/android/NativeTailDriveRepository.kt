@@ -7,7 +7,6 @@ import com.taildrive.ffi.FileType
 import com.taildrive.ffi.QuotaInfo
 import com.taildrive.ffi.TailDriveFfiClient
 import com.taildrive.ffi.TransferObserver
-import com.taildrive.ffi.uniffiEnsureInitialized
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -17,22 +16,10 @@ import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
-internal class Repositories(context: Context) {
-    private val nativeAvailable by lazy {
-        try {
-            System.loadLibrary("taildrive_ffi")
-            NativeTls.initialize(context)
-            uniffiEnsureInitialized()
-            true
-        } catch (_: LinkageError) {
-            false
-        } catch (_: RuntimeException) {
-            false
-        }
-    }
-
+internal class Repositories(private val clients: FfiClientCache) {
     suspend fun open(connection: Connection): TailDriveRepository = withContext(Dispatchers.IO) {
-        if (nativeAvailable) NativeTailDriveRepository(connection) else HttpTailDriveRepository(connection)
+        clients.ensureLoaded()
+        NativeTailDriveRepository(connection, clients)
     }
 }
 
@@ -40,7 +27,10 @@ internal object NativeTls {
     @JvmStatic external fun initialize(context: Context)
 }
 
-private class NativeTailDriveRepository(private val connection: Connection) : TailDriveRepository {
+private class NativeTailDriveRepository(
+    private val connection: Connection,
+    private val clients: FfiClientCache,
+) : TailDriveRepository {
     override suspend fun health(): Health = call { health().let { Health(it.node, it.quota.model()) } }
 
     override suspend fun list(path: String, cursor: String?): FilePage = call {
@@ -112,7 +102,7 @@ private class NativeTailDriveRepository(private val connection: Connection) : Ta
     private suspend fun <T> call(action: TailDriveFfiClient.() -> T): T = withContext(Dispatchers.IO) {
         ensureActive()
         try {
-            TailDriveFfiClient(connection.url, connection.token).use(action)
+            clients.withClient(connection, action)
         } catch (failure: FfiException) {
             ensureActive()
             throw when (failure) {
