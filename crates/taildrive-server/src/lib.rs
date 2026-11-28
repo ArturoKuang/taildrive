@@ -28,6 +28,7 @@ struct AppState {
     token_hashes: Vec<String>,
     node: String,
     web_dir: Option<std::path::PathBuf>,
+    releases_dir: Option<std::path::PathBuf>,
     reader: Arc<reader::Reader>,
 }
 
@@ -54,6 +55,7 @@ impl App {
                     .collect(),
                 node: config.node_name,
                 web_dir: config.web_dir,
+                releases_dir: config.releases_dir,
                 reader,
             }),
         })

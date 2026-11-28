@@ -1044,3 +1044,140 @@ async fn static_ui_and_opendal_backend_use_the_normal_server_entry_point() {
     );
     server.stop().await;
 }
+
+#[tokio::test]
+async fn updates_served_by_server_with_health_signal_and_fallback() {
+    use std::collections::BTreeMap;
+    use taildrive_core::update::{
+        BuildInfo, ReleaseArtifact, ReleaseManifest, UpdateCheck, UpdaterClient,
+        generate_signing_keypair, sign_manifest_bytes,
+    };
+
+    let (priv_b64, pub_b64) = generate_signing_keypair().unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    let releases_dir = dir.path().join("releases");
+    tokio::fs::create_dir_all(releases_dir.join("artifacts"))
+        .await
+        .unwrap();
+
+    let payload = b"taildrive-macos-bundle-zip-bytes";
+    let payload_sha = sha256_hex(payload);
+    tokio::fs::write(
+        releases_dir.join("artifacts/TailDrive-macos-arm64-abcdef1.zip"),
+        payload,
+    )
+    .await
+    .unwrap();
+
+    let mut artifacts = BTreeMap::new();
+    artifacts.insert(
+        "macos-app-arm64".to_owned(),
+        ReleaseArtifact {
+            url: "/v1/updates/artifacts/TailDrive-macos-arm64-abcdef1.zip".to_owned(),
+            sha256: payload_sha,
+            size: payload.len() as u64,
+        },
+    );
+    let manifest = ReleaseManifest {
+        schema_version: 1,
+        channel: "main".to_owned(),
+        version: "0.1.0-main.99+abcdef1".to_owned(),
+        build_number: 99,
+        commit_sha: "abcdef1234567890abcdef1234567890abcdef12".to_owned(),
+        published_at: "2026-11-28T04:00:00Z".to_owned(),
+        release_url: "https://github.com/ArturoKuang/taildrive/releases/tag/main-99".to_owned(),
+        notes: "Local TailDrive server release".to_owned(),
+        artifacts,
+    };
+    let manifest_bytes = serde_json::to_vec(&manifest).unwrap();
+    let sig = sign_manifest_bytes(&manifest_bytes, &priv_b64).unwrap();
+    tokio::fs::write(releases_dir.join("manifest.json"), &manifest_bytes)
+        .await
+        .unwrap();
+    tokio::fs::write(releases_dir.join("manifest.json.sig"), &sig)
+        .await
+        .unwrap();
+
+    let mut cfg = config(&dir, 1000);
+    cfg.releases_dir = Some(releases_dir);
+    let server = Server::start(cfg, None).await;
+
+    let health = server.typed().health().await.unwrap();
+    assert!(health.server_version.is_some());
+    assert_eq!(health.latest_build_number, Some(99));
+
+    // Reject path traversal on /v1/updates/artifacts/{name}.
+    let bad_name = server
+        .http
+        .get(server.url("/v1/updates/artifacts/..secret"))
+        .bearer_auth(TOKEN)
+        .send()
+        .await
+        .unwrap();
+    assert_error(bad_name, StatusCode::BAD_REQUEST, "ERR_BAD_REQUEST").await;
+
+    // Server-first check resolves relative /v1/updates/artifacts/... and downloads with Bearer auth.
+    let updater = UpdaterClient::new().unwrap();
+    let current = BuildInfo {
+        version: "0.1.0-main.98+0000000".to_owned(),
+        channel: "main".to_owned(),
+        build_number: 98,
+        commit_sha: "0000000000000000000000000000000000000000".to_owned(),
+        short_sha: "0000000".to_owned(),
+        built_at: String::new(),
+    };
+    let base_url = format!("http://{}", server.addr);
+    let check = updater
+        .check_for_update_server_first(
+            &current,
+            "macos-app-arm64",
+            Some(&base_url),
+            Some(TOKEN),
+            "http://127.0.0.1:9/unreachable/manifest.json",
+            &pub_b64,
+            false,
+        )
+        .await
+        .unwrap();
+    let release = match check {
+        UpdateCheck::Available { release, .. } => release,
+        UpdateCheck::UpToDate { .. } => panic!("expected server update"),
+    };
+    assert_eq!(
+        release.download_url,
+        format!("{base_url}/v1/updates/artifacts/TailDrive-macos-arm64-abcdef1.zip")
+    );
+
+    let dest = dir.path().join("downloaded.zip");
+    updater
+        .download_verified_artifact_with_auth(&release, &dest, Some(&base_url), Some(TOKEN), |_, _| {
+            true
+        })
+        .await
+        .unwrap();
+    assert_eq!(std::fs::read(&dest).unwrap(), payload);
+
+    // Fallback check: when primary server has no releases_dir (404), it falls back cleanly.
+    let dir2 = tempfile::tempdir().unwrap();
+    let empty_server = Server::start(config(&dir2, 1000), None).await;
+    assert_eq!(
+        empty_server.typed().health().await.unwrap().latest_build_number,
+        None
+    );
+
+    let fallback_err = updater
+        .check_for_update_server_first(
+            &current,
+            "macos-app-arm64",
+            Some(&format!("http://{}", empty_server.addr)),
+            Some(TOKEN),
+            "http://127.0.0.1:9/fallback/manifest.json",
+            &pub_b64,
+            false,
+        )
+        .await;
+    assert!(fallback_err.is_err());
+
+    empty_server.stop().await;
+    server.stop().await;
+}

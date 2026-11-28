@@ -98,6 +98,9 @@ public final class AppUpdater: ObservableObject {
     private let queue = DispatchQueue(label: "com.taildrive.macos.updater", qos: .utility)
     private var initialTimer: Timer?
     private var periodicTimer: Timer?
+    private var serverSource: (() -> (url: String, token: String?)?)?
+    private var healthCancellable: AnyCancellable?
+    private var lastObservedServerBuild: UInt64 = 0
 
     public init(
         defaults: UserDefaults = .standard,
@@ -124,6 +127,28 @@ public final class AppUpdater: ObservableObject {
     deinit {
         initialTimer?.invalidate()
         periodicTimer?.invalidate()
+        healthCancellable?.cancel()
+    }
+
+    public func bind(to syncModel: SyncModel) {
+        serverSource = { [weak syncModel] in
+            guard let syncModel, let config = syncModel.configuration else { return nil }
+            let token = (try? syncModel.token()).flatMap { $0.isEmpty ? nil : $0 }
+            return (config.server.absoluteString, token)
+        }
+        healthCancellable = syncModel.$serverLatestBuild
+            .compactMap { $0 }
+            .sink { [weak self] remoteBuild in
+                self?.noteServerLatestBuild(remoteBuild)
+            }
+    }
+
+    public func noteServerLatestBuild(_ remoteBuild: UInt64) {
+        guard autoCheckEnabled else { return }
+        guard currentBuild.channel != "dev", currentBuild.buildNumber > 0 else { return }
+        guard remoteBuild > currentBuild.buildNumber, remoteBuild > lastObservedServerBuild else { return }
+        lastObservedServerBuild = remoteBuild
+        checkForUpdates(manual: false)
     }
 
     public func checkForUpdates(manual: Bool) {
@@ -134,11 +159,14 @@ public final class AppUpdater: ObservableObject {
         let manifestURL = self.manifestURL
         let publicKeyB64 = self.publicKeyB64
         let artifactKey = Self.currentArtifactKey
+        let server = serverSource?()
         queue.async { [weak self] in
             let result = Result {
-                try checkForUpdateWithKey(
+                try checkForUpdateServerFirst(
                     artifactKey: artifactKey,
-                    manifestUrl: manifestURL,
+                    serverBaseUrl: server?.url,
+                    bearerToken: server?.token,
+                    fallbackManifestUrl: manifestURL,
                     publicKeyB64: publicKeyB64,
                     allowDevUpgrade: manual
                 )
@@ -181,6 +209,7 @@ public final class AppUpdater: ObservableObject {
         state = .downloading(release, nil)
         let cacheRoot = Self.updatesCacheDirectory()
         let pid = ProcessInfo.processInfo.processIdentifier
+        let server = serverSource?()
         queue.async { [weak self] in
             let result = Result<URL, Error> {
                 let stageDir = cacheRoot.appendingPathComponent(
@@ -195,9 +224,11 @@ public final class AppUpdater: ObservableObject {
                         self.state = .downloading(release, fraction)
                     }
                 }
-                try downloadUpdateArtifact(
+                try downloadUpdateArtifactWithAuth(
                     release: release,
                     destPath: archiveURL.path,
+                    authOrigin: server?.url,
+                    bearerToken: server?.token,
                     observer: observer
                 )
                 DispatchQueue.main.async { [weak self] in

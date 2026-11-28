@@ -707,11 +707,15 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_taildrive_ffi_checksum_func_check_for_update(
     ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_check_for_update_server_first(
+    ): Int
     external fun uniffi_taildrive_ffi_checksum_func_check_for_update_with_key(
     ): Int
     external fun uniffi_taildrive_ffi_checksum_func_current_build_info(
     ): Int
     external fun uniffi_taildrive_ffi_checksum_func_download_update_artifact(
+    ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_download_update_artifact_with_auth(
     ): Int
     external fun uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder(
     ): Int
@@ -800,11 +804,15 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_check_for_update(`artifactKey`: RustBuffer.ByValue,`manifestUrl`: RustBuffer.ByValue,`allowDevUpgrade`: Byte,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
+    external fun uniffi_taildrive_ffi_fn_func_check_for_update_server_first(`artifactKey`: RustBuffer.ByValue,`serverBaseUrl`: RustBuffer.ByValue,`bearerToken`: RustBuffer.ByValue,`fallbackManifestUrl`: RustBuffer.ByValue,`publicKeyB64`: RustBuffer.ByValue,`allowDevUpgrade`: Byte,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_check_for_update_with_key(`artifactKey`: RustBuffer.ByValue,`manifestUrl`: RustBuffer.ByValue,`publicKeyB64`: RustBuffer.ByValue,`allowDevUpgrade`: Byte,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_current_build_info(uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_download_update_artifact(`release`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,`observer`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+    external fun uniffi_taildrive_ffi_fn_func_download_update_artifact_with_auth(`release`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,`authOrigin`: RustBuffer.ByValue,`bearerToken`: RustBuffer.ByValue,`observer`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): Unit
     external fun ffi_taildrive_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
@@ -940,6 +948,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
     if ((lib.uniffi_taildrive_ffi_checksum_func_check_for_update() and 0xFFFF) != 14447) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_check_for_update_server_first() and 0xFFFF) != 37828) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if ((lib.uniffi_taildrive_ffi_checksum_func_check_for_update_with_key() and 0xFFFF) != 52582) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -947,6 +958,9 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_taildrive_ffi_checksum_func_download_update_artifact() and 0xFFFF) != 12540) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_download_update_artifact_with_auth() and 0xFFFF) != 10094) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() and 0xFFFF) != 40067) {
@@ -1946,6 +1960,10 @@ data class HealthResponse (
     var `storageDriver`: kotlin.String
     ,
     var `quota`: QuotaInfo
+    ,
+    var `serverVersion`: kotlin.String?
+    ,
+    var `latestBuildNumber`: kotlin.ULong?
 
 ){
 
@@ -1967,6 +1985,8 @@ public object FfiConverterTypeHealthResponse: FfiConverterRustBuffer<HealthRespo
             FfiConverterOptionalString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterTypeQuotaInfo.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalULong.read(buf),
         )
     }
 
@@ -1975,7 +1995,9 @@ public object FfiConverterTypeHealthResponse: FfiConverterRustBuffer<HealthRespo
             FfiConverterString.allocationSize(value.`node`) +
             FfiConverterOptionalString.allocationSize(value.`tailnetUser`) +
             FfiConverterString.allocationSize(value.`storageDriver`) +
-            FfiConverterTypeQuotaInfo.allocationSize(value.`quota`)
+            FfiConverterTypeQuotaInfo.allocationSize(value.`quota`) +
+            FfiConverterOptionalString.allocationSize(value.`serverVersion`) +
+            FfiConverterOptionalULong.allocationSize(value.`latestBuildNumber`)
     )
 
     override fun write(value: HealthResponse, buf: ByteBuffer) {
@@ -1984,6 +2006,8 @@ public object FfiConverterTypeHealthResponse: FfiConverterRustBuffer<HealthRespo
             FfiConverterOptionalString.write(value.`tailnetUser`, buf)
             FfiConverterString.write(value.`storageDriver`, buf)
             FfiConverterTypeQuotaInfo.write(value.`quota`, buf)
+            FfiConverterOptionalString.write(value.`serverVersion`, buf)
+            FfiConverterOptionalULong.write(value.`latestBuildNumber`, buf)
     }
 }
 
@@ -3231,6 +3255,23 @@ public object FfiConverterSequenceTypeSyncAction: FfiConverterRustBuffer<List<Sy
     }
 
 
+    @Throws(FfiException::class) fun `checkForUpdateServerFirst`(`artifactKey`: kotlin.String, `serverBaseUrl`: kotlin.String?, `bearerToken`: kotlin.String?, `fallbackManifestUrl`: kotlin.String?, `publicKeyB64`: kotlin.String?, `allowDevUpgrade`: kotlin.Boolean): UpdateCheck {
+            return FfiConverterTypeUpdateCheck.lift(
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_check_for_update_server_first(
+
+
+        FfiConverterString.lower(`artifactKey`),
+        FfiConverterOptionalString.lower(`serverBaseUrl`),
+        FfiConverterOptionalString.lower(`bearerToken`),
+        FfiConverterOptionalString.lower(`fallbackManifestUrl`),
+        FfiConverterOptionalString.lower(`publicKeyB64`),
+        FfiConverterBoolean.lower(`allowDevUpgrade`),_status)
+}
+    )
+    }
+
+
     @Throws(FfiException::class) fun `checkForUpdateWithKey`(`artifactKey`: kotlin.String, `manifestUrl`: kotlin.String?, `publicKeyB64`: kotlin.String?, `allowDevUpgrade`: kotlin.Boolean): UpdateCheck {
             return FfiConverterTypeUpdateCheck.lift(
     uniffiRustCallWithError(FfiException) { _status ->
@@ -3264,6 +3305,21 @@ public object FfiConverterSequenceTypeSyncAction: FfiConverterRustBuffer<List<Sy
 
         FfiConverterTypeUpdateRelease.lower(`release`),
         FfiConverterString.lower(`destPath`),
+        FfiConverterOptionalTypeTransferObserver.lower(`observer`),_status)
+}
+
+
+
+    @Throws(FfiException::class) fun `downloadUpdateArtifactWithAuth`(`release`: UpdateRelease, `destPath`: kotlin.String, `authOrigin`: kotlin.String?, `bearerToken`: kotlin.String?, `observer`: TransferObserver?)
+        =
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_download_update_artifact_with_auth(
+
+
+        FfiConverterTypeUpdateRelease.lower(`release`),
+        FfiConverterString.lower(`destPath`),
+        FfiConverterOptionalString.lower(`authOrigin`),
+        FfiConverterOptionalString.lower(`bearerToken`),
         FfiConverterOptionalTypeTransferObserver.lower(`observer`),_status)
 }
 

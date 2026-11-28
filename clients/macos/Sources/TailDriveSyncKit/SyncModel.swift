@@ -39,6 +39,8 @@ public final class SyncModel: ObservableObject {
     @Published public private(set) var recent: [String] = []
     @Published public private(set) var syncError: String?
     @Published public private(set) var saving = false
+    @Published public private(set) var serverVersion: String?
+    @Published public private(set) var serverLatestBuild: UInt64?
 
     private let store = SettingsStore()
     private let queue = DispatchQueue(label: "com.taildrive.macos.sync", qos: .utility)
@@ -248,6 +250,8 @@ public final class SyncModel: ObservableObject {
             connection = .online
             node = health.node
             quota = health.quota
+            serverVersion = health.serverVersion
+            serverLatestBuild = health.latestBuildNumber
         case .quota(let value):
             quota = value
         case .recent(let paths):

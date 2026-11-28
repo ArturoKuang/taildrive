@@ -6,8 +6,16 @@ import TailDriveSyncKit
 @MainActor
 struct TailDriveApp: App {
     @NSApplicationDelegateAdaptor(MenuBarDelegate.self) private var delegate
-    @StateObject private var model = SyncModel()
-    @StateObject private var updater = AppUpdater()
+    @StateObject private var model: SyncModel
+    @StateObject private var updater: AppUpdater
+
+    init() {
+        let syncModel = SyncModel()
+        let appUpdater = AppUpdater()
+        appUpdater.bind(to: syncModel)
+        _model = StateObject(wrappedValue: syncModel)
+        _updater = StateObject(wrappedValue: appUpdater)
+    }
 
     private var menuBarSymbol: String {
         if updater.state.availableRelease != nil {

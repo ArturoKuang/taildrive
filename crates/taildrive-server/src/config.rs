@@ -11,6 +11,7 @@ pub struct Config {
     pub api_tokens: Vec<String>,
     pub node_name: String,
     pub web_dir: Option<PathBuf>,
+    pub releases_dir: Option<PathBuf>,
     pub bind: SocketAddr,
     pub storage: StorageConfig,
     /// Base URL clients reach this server at; the pairing QR carries `<url>/v1/reader`.
@@ -43,6 +44,7 @@ impl Config {
             api_tokens: Vec::new(),
             node_name: "macmini-ci".to_owned(),
             web_dir: None,
+            releases_dir: None,
             bind: SocketAddr::from(([127, 0, 0, 1], 8787)),
             storage: StorageConfig::LocalFs,
             reader_public_url: DEFAULT_READER_PUBLIC_URL.to_owned(),
@@ -62,6 +64,9 @@ impl Config {
             .collect();
         config.node_name = env_or("TAILDRIVE_NODE_NAME", &config.node_name);
         config.web_dir = env::var_os("TAILDRIVE_WEB_DIR")
+            .filter(|dir| !dir.is_empty())
+            .map(PathBuf::from);
+        config.releases_dir = env::var_os("TAILDRIVE_RELEASES_DIR")
             .filter(|dir| !dir.is_empty())
             .map(PathBuf::from);
         config.bind = env_or("TAILDRIVE_BIND", "127.0.0.1:8787")

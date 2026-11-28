@@ -1050,15 +1050,19 @@ public struct HealthResponse: Equatable, Hashable {
     public var tailnetUser: String?
     public var storageDriver: String
     public var quota: QuotaInfo
+    public var serverVersion: String?
+    public var latestBuildNumber: UInt64?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(status: String, node: String, tailnetUser: String?, storageDriver: String, quota: QuotaInfo) {
+    public init(status: String, node: String, tailnetUser: String?, storageDriver: String, quota: QuotaInfo, serverVersion: String?, latestBuildNumber: UInt64?) {
         self.status = status
         self.node = node
         self.tailnetUser = tailnetUser
         self.storageDriver = storageDriver
         self.quota = quota
+        self.serverVersion = serverVersion
+        self.latestBuildNumber = latestBuildNumber
     }
 
 
@@ -1081,7 +1085,9 @@ public struct FfiConverterTypeHealthResponse: FfiConverterRustBuffer {
                 node: FfiConverterString.read(from: &buf),
                 tailnetUser: FfiConverterOptionString.read(from: &buf),
                 storageDriver: FfiConverterString.read(from: &buf),
-                quota: FfiConverterTypeQuotaInfo.read(from: &buf)
+                quota: FfiConverterTypeQuotaInfo.read(from: &buf),
+                serverVersion: FfiConverterOptionString.read(from: &buf),
+                latestBuildNumber: FfiConverterOptionUInt64.read(from: &buf)
         )
     }
 
@@ -1091,6 +1097,8 @@ public struct FfiConverterTypeHealthResponse: FfiConverterRustBuffer {
         FfiConverterOptionString.write(value.tailnetUser, into: &buf)
         FfiConverterString.write(value.storageDriver, into: &buf)
         FfiConverterTypeQuotaInfo.write(value.quota, into: &buf)
+        FfiConverterOptionString.write(value.serverVersion, into: &buf)
+        FfiConverterOptionUInt64.write(value.latestBuildNumber, into: &buf)
     }
 }
 
@@ -2366,6 +2374,19 @@ public func checkForUpdate(artifactKey: String, manifestUrl: String?, allowDevUp
     )
 })
 }
+public func checkForUpdateServerFirst(artifactKey: String, serverBaseUrl: String?, bearerToken: String?, fallbackManifestUrl: String?, publicKeyB64: String?, allowDevUpgrade: Bool)throws  -> UpdateCheck  {
+    return try  FfiConverterTypeUpdateCheck_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_check_for_update_server_first(
+        FfiConverterString.lower(artifactKey),
+        FfiConverterOptionString.lower(serverBaseUrl),
+        FfiConverterOptionString.lower(bearerToken),
+        FfiConverterOptionString.lower(fallbackManifestUrl),
+        FfiConverterOptionString.lower(publicKeyB64),
+        FfiConverterBool.lower(allowDevUpgrade),uniffiCallStatus
+    )
+})
+}
 public func checkForUpdateWithKey(artifactKey: String, manifestUrl: String?, publicKeyB64: String?, allowDevUpgrade: Bool)throws  -> UpdateCheck  {
     return try  FfiConverterTypeUpdateCheck_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
         uniffiCallStatus in
@@ -2389,6 +2410,17 @@ public func downloadUpdateArtifact(release: UpdateRelease, destPath: String, obs
     uniffi_taildrive_ffi_fn_func_download_update_artifact(
         FfiConverterTypeUpdateRelease_lower(release),
         FfiConverterString.lower(destPath),
+        FfiConverterOptionCallbackInterfaceTransferObserver.lower(observer),uniffiCallStatus
+    )
+}
+}
+public func downloadUpdateArtifactWithAuth(release: UpdateRelease, destPath: String, authOrigin: String?, bearerToken: String?, observer: TransferObserver?)throws   {try rustCallWithError(FfiConverterTypeFfiError_lift) {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_download_update_artifact_with_auth(
+        FfiConverterTypeUpdateRelease_lower(release),
+        FfiConverterString.lower(destPath),
+        FfiConverterOptionString.lower(authOrigin),
+        FfiConverterOptionString.lower(bearerToken),
         FfiConverterOptionCallbackInterfaceTransferObserver.lower(observer),uniffiCallStatus
     )
 }
@@ -2424,6 +2456,9 @@ private let initializationResult: InitializationResult = {
     if (uniffi_taildrive_ffi_checksum_func_check_for_update() != 14447) {
         return InitializationResult.apiChecksumMismatch
     }
+    if (uniffi_taildrive_ffi_checksum_func_check_for_update_server_first() != 37828) {
+        return InitializationResult.apiChecksumMismatch
+    }
     if (uniffi_taildrive_ffi_checksum_func_check_for_update_with_key() != 52582) {
         return InitializationResult.apiChecksumMismatch
     }
@@ -2431,6 +2466,9 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taildrive_ffi_checksum_func_download_update_artifact() != 12540) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taildrive_ffi_checksum_func_download_update_artifact_with_auth() != 10094) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() != 40067) {

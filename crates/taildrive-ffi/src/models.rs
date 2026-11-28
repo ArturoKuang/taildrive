@@ -47,6 +47,8 @@ struct HealthResponse {
     tailnet_user: Option<String>,
     storage_driver: String,
     quota: QuotaInfo,
+    server_version: Option<String>,
+    latest_build_number: Option<u64>,
 }
 
 #[uniffi::remote(Record)]

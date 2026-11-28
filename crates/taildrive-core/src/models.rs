@@ -48,6 +48,10 @@ pub struct HealthResponse {
     pub tailnet_user: Option<String>,
     pub storage_driver: String,
     pub quota: QuotaInfo,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub latest_build_number: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

@@ -357,9 +357,17 @@ internal class DriveViewModel(application: Application) : AndroidViewModel(appli
                 it.copy(update = it.update.copy(checking = true, error = null, upToDate = false))
             }
             try {
+                val connection = state.value.connection
                 val result = withContext(Dispatchers.IO) {
                     drive.ffiClients.ensureLoaded()
-                    com.taildrive.ffi.checkForUpdate("android-apk-arm64", null, true)
+                    com.taildrive.ffi.checkForUpdateServerFirst(
+                        "android-apk-arm64",
+                        connection?.url,
+                        connection?.token?.ifBlank { null },
+                        null,
+                        null,
+                        true,
+                    )
                 }
                 when (result) {
                     is com.taildrive.ffi.UpdateCheck.UpToDate -> {

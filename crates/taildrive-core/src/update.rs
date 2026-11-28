@@ -161,6 +161,37 @@ pub fn manifest_url_for_tag(tag: &str) -> String {
     format!("{DEFAULT_RELEASE_BASE_URL}/{trimmed}/manifest.json")
 }
 
+pub fn server_manifest_url(server_base_url: &str) -> Result<String, UpdateError> {
+    let mut base = validate_update_url(server_base_url.trim())?;
+    base.set_query(None);
+    base.set_fragment(None);
+    {
+        let mut segments = base
+            .path_segments_mut()
+            .map_err(|_| UpdateError::InvalidUrl(server_base_url.to_owned()))?;
+        segments.pop_if_empty();
+        segments.extend(["v1", "updates", "manifest.json"]);
+    }
+    Ok(base.to_string())
+}
+
+pub fn resolve_artifact_url(manifest_url: &str, artifact_url: &str) -> Result<Url, UpdateError> {
+    let resolved = if artifact_url.starts_with('/') {
+        let base = validate_update_url(manifest_url)?;
+        base.join(artifact_url)
+            .map_err(|_| UpdateError::InvalidUrl(artifact_url.to_owned()))?
+    } else {
+        Url::parse(artifact_url).map_err(|_| UpdateError::InvalidUrl(artifact_url.to_owned()))?
+    };
+    validate_update_url(resolved.as_str())
+}
+
+fn same_origin(a: &Url, b: &Url) -> bool {
+    a.scheme() == b.scheme()
+        && a.host_str() == b.host_str()
+        && a.port_or_known_default() == b.port_or_known_default()
+}
+
 pub fn short_commit_sha(commit_sha: &str) -> String {
     commit_sha.chars().take(7).collect()
 }
@@ -260,16 +291,33 @@ impl UpdaterClient {
         manifest_url: &str,
         public_key_b64: &str,
     ) -> Result<ReleaseManifest, UpdateError> {
+        self.fetch_verified_manifest_with_auth(manifest_url, public_key_b64, None)
+            .await
+    }
+
+    pub async fn fetch_verified_manifest_with_auth(
+        &self,
+        manifest_url: &str,
+        public_key_b64: &str,
+        bearer_token: Option<&str>,
+    ) -> Result<ReleaseManifest, UpdateError> {
         let url = validate_update_url(manifest_url)?;
         let sig_url = validate_update_url(&format!("{manifest_url}.sig"))?;
 
-        let manifest_resp = self.http.get(url).send().await?;
+        let mut manifest_req = self.http.get(url);
+        let mut sig_req = self.http.get(sig_url);
+        if let Some(token) = bearer_token.filter(|t| !t.trim().is_empty()) {
+            manifest_req = manifest_req.bearer_auth(token);
+            sig_req = sig_req.bearer_auth(token);
+        }
+
+        let manifest_resp = manifest_req.send().await?;
         if !manifest_resp.status().is_success() {
             return Err(UpdateError::HttpStatus(manifest_resp.status()));
         }
         let manifest_bytes = manifest_resp.bytes().await?;
 
-        let sig_resp = self.http.get(sig_url).send().await?;
+        let sig_resp = sig_req.send().await?;
         if !sig_resp.status().is_success() {
             return Err(UpdateError::HttpStatus(sig_resp.status()));
         }
@@ -301,14 +349,34 @@ impl UpdaterClient {
         public_key_b64: &str,
         allow_dev_upgrade: bool,
     ) -> Result<UpdateCheck, UpdateError> {
+        self.check_for_update_with_auth(
+            current,
+            artifact_key,
+            manifest_url,
+            public_key_b64,
+            None,
+            allow_dev_upgrade,
+        )
+        .await
+    }
+
+    pub async fn check_for_update_with_auth(
+        &self,
+        current: &BuildInfo,
+        artifact_key: &str,
+        manifest_url: &str,
+        public_key_b64: &str,
+        bearer_token: Option<&str>,
+        allow_dev_upgrade: bool,
+    ) -> Result<UpdateCheck, UpdateError> {
         let manifest = self
-            .fetch_verified_manifest(manifest_url, public_key_b64)
+            .fetch_verified_manifest_with_auth(manifest_url, public_key_b64, bearer_token)
             .await?;
         let artifact = manifest
             .artifacts
             .get(artifact_key)
             .ok_or_else(|| UpdateError::MissingArtifact(artifact_key.to_owned()))?;
-        validate_update_url(&artifact.url)?;
+        let resolved_url = resolve_artifact_url(manifest_url, &artifact.url)?;
 
         if !is_update_available(current, &manifest, allow_dev_upgrade) {
             return Ok(UpdateCheck::UpToDate {
@@ -316,11 +384,49 @@ impl UpdaterClient {
             });
         }
 
-        let release = manifest_to_release(&manifest, artifact_key, artifact);
+        let release = manifest_to_release(&manifest, artifact_key, artifact, resolved_url.as_str());
         Ok(UpdateCheck::Available {
             current: current.clone(),
             release: Box::new(release),
         })
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub async fn check_for_update_server_first(
+        &self,
+        current: &BuildInfo,
+        artifact_key: &str,
+        server_base_url: Option<&str>,
+        bearer_token: Option<&str>,
+        fallback_manifest_url: &str,
+        public_key_b64: &str,
+        allow_dev_upgrade: bool,
+    ) -> Result<UpdateCheck, UpdateError> {
+        if let Some(base) = server_base_url.map(str::trim).filter(|s| !s.is_empty())
+            && let Ok(server_url) = server_manifest_url(base)
+            && let Ok(check) = self
+                .check_for_update_with_auth(
+                    current,
+                    artifact_key,
+                    &server_url,
+                    public_key_b64,
+                    bearer_token,
+                    allow_dev_upgrade,
+                )
+                .await
+        {
+            return Ok(check);
+        }
+
+        self.check_for_update_with_auth(
+            current,
+            artifact_key,
+            fallback_manifest_url,
+            public_key_b64,
+            None,
+            allow_dev_upgrade,
+        )
+        .await
     }
 
     pub async fn fetch_release_artifact(
@@ -336,14 +442,34 @@ impl UpdaterClient {
             .artifacts
             .get(artifact_key)
             .ok_or_else(|| UpdateError::MissingArtifact(artifact_key.to_owned()))?;
-        validate_update_url(&artifact.url)?;
-        Ok(manifest_to_release(&manifest, artifact_key, artifact))
+        let resolved_url = resolve_artifact_url(manifest_url, &artifact.url)?;
+        Ok(manifest_to_release(
+            &manifest,
+            artifact_key,
+            artifact,
+            resolved_url.as_str(),
+        ))
     }
 
     pub async fn download_verified_artifact<F>(
         &self,
         release: &UpdateRelease,
         dest_path: &Path,
+        on_progress: F,
+    ) -> Result<(), UpdateError>
+    where
+        F: FnMut(u64, u64) -> bool,
+    {
+        self.download_verified_artifact_with_auth(release, dest_path, None, None, on_progress)
+            .await
+    }
+
+    pub async fn download_verified_artifact_with_auth<F>(
+        &self,
+        release: &UpdateRelease,
+        dest_path: &Path,
+        auth_origin: Option<&str>,
+        bearer_token: Option<&str>,
         mut on_progress: F,
     ) -> Result<(), UpdateError>
     where
@@ -356,7 +482,17 @@ impl UpdaterClient {
             .unwrap_or_else(|| Path::new("."));
         tokio::fs::create_dir_all(parent).await?;
 
-        let response = self.http.get(url).send().await?;
+        let mut request = self.http.get(url.clone());
+        if let (Some(origin_raw), Some(token)) = (
+            auth_origin.map(str::trim).filter(|s| !s.is_empty()),
+            bearer_token.filter(|t| !t.trim().is_empty()),
+        ) && let Ok(origin_url) = validate_update_url(origin_raw)
+            && same_origin(&url, &origin_url)
+        {
+            request = request.bearer_auth(token);
+        }
+
+        let response = request.send().await?;
         if !response.status().is_success() {
             return Err(UpdateError::HttpStatus(response.status()));
         }
@@ -413,6 +549,7 @@ fn manifest_to_release(
     manifest: &ReleaseManifest,
     artifact_key: &str,
     artifact: &ReleaseArtifact,
+    resolved_download_url: &str,
 ) -> UpdateRelease {
     UpdateRelease {
         version: manifest.version.clone(),
@@ -424,7 +561,7 @@ fn manifest_to_release(
         release_url: manifest.release_url.clone(),
         notes: manifest.notes.clone(),
         artifact_key: artifact_key.to_owned(),
-        download_url: artifact.url.clone(),
+        download_url: resolved_download_url.to_owned(),
         sha256: artifact.sha256.clone(),
         size_bytes: artifact.size,
     }

@@ -19,7 +19,9 @@ use taildrive_core::{
         ListSharesResponse,
     },
     path::{DrivePath, parse_folder_path, parse_path},
+    update::{ReleaseManifest, current_build_info},
 };
+use tokio_util::io::ReaderStream;
 
 use crate::{
     App,
@@ -42,6 +44,9 @@ pub(crate) fn router(app: App) -> Router {
         .route("/uploads/{id}/complete", post(complete_upload))
         .route("/shares", get(list_shares).post(create_share))
         .route("/shares/{id}", axum::routing::delete(revoke_share))
+        .route("/updates/manifest.json", get(get_update_manifest))
+        .route("/updates/manifest.json.sig", get(get_update_manifest_sig))
+        .route("/updates/artifacts/{name}", get(get_update_artifact))
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .layer(middleware::from_fn_with_state(
@@ -63,13 +68,113 @@ async fn health(
     Extension(caller): Extension<Principal>,
 ) -> ApiResult<Json<HealthResponse>> {
     let drive = &app.state.drive;
+    let latest_build_number = read_latest_build_number(app.state.releases_dir.as_deref()).await;
     Ok(Json(HealthResponse {
         status: "ok".to_owned(),
         node: app.state.node.clone(),
         tailnet_user: caller.tailnet_user,
         storage_driver: drive.storage.driver_name().to_owned(),
         quota: drive.quota().await?,
+        server_version: Some(current_build_info().version),
+        latest_build_number,
     }))
+}
+
+async fn read_latest_build_number(releases_dir: Option<&std::path::Path>) -> Option<u64> {
+    let dir = releases_dir?;
+    let bytes = tokio::fs::read(dir.join("manifest.json")).await.ok()?;
+    let manifest: ReleaseManifest = serde_json::from_slice(&bytes).ok()?;
+    Some(manifest.build_number)
+}
+
+async fn get_update_manifest(State(app): State<App>) -> ApiResult<Response> {
+    serve_release_file(
+        app.state.releases_dir.as_deref(),
+        "manifest.json",
+        "application/json",
+        "no-cache",
+    )
+    .await
+}
+
+async fn get_update_manifest_sig(State(app): State<App>) -> ApiResult<Response> {
+    serve_release_file(
+        app.state.releases_dir.as_deref(),
+        "manifest.json.sig",
+        "text/plain; charset=utf-8",
+        "no-cache",
+    )
+    .await
+}
+
+async fn get_update_artifact(
+    State(app): State<App>,
+    name: Result<Path<String>, PathRejection>,
+) -> ApiResult<Response> {
+    let Path(name) = name.map_err(|error| ApiError::bad(error.body_text()))?;
+    if !is_safe_artifact_name(&name) {
+        return Err(ApiError::bad("invalid artifact name"));
+    }
+    let Some(dir) = app.state.releases_dir.as_deref() else {
+        return Err(ApiError::not_found("updates are not configured on this server"));
+    };
+    let path = dir.join("artifacts").join(&name);
+    let file = match tokio::fs::File::open(&path).await {
+        Ok(file) => file,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ApiError::not_found("release artifact not found"));
+        }
+        Err(err) => return Err(ApiError::internal(err.to_string())),
+    };
+    let metadata = file
+        .metadata()
+        .await
+        .map_err(|err| ApiError::internal(err.to_string()))?;
+    if !metadata.is_file() {
+        return Err(ApiError::not_found("release artifact not found"));
+    }
+    let stream = ReaderStream::new(file);
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "application/octet-stream")
+        .header(header::CONTENT_LENGTH, metadata.len().to_string())
+        .header(header::CACHE_CONTROL, "public, max-age=31536000, immutable")
+        .body(Body::from_stream(stream))
+        .map_err(|err| ApiError::internal(err.to_string()))
+}
+
+async fn serve_release_file(
+    releases_dir: Option<&std::path::Path>,
+    filename: &str,
+    content_type: &'static str,
+    cache_control: &'static str,
+) -> ApiResult<Response> {
+    let Some(dir) = releases_dir else {
+        return Err(ApiError::not_found("updates are not configured on this server"));
+    };
+    let bytes = match tokio::fs::read(dir.join(filename)).await {
+        Ok(bytes) => bytes,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Err(ApiError::not_found("update manifest not found"));
+        }
+        Err(err) => return Err(ApiError::internal(err.to_string())),
+    };
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CONTENT_LENGTH, bytes.len().to_string())
+        .header(header::CACHE_CONTROL, cache_control)
+        .body(Body::from(bytes))
+        .map_err(|err| ApiError::internal(err.to_string()))
+}
+
+fn is_safe_artifact_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 160
+        && !name.starts_with('.')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'-' | b'_'))
 }
 
 #[derive(Deserialize)]

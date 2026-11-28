@@ -109,7 +109,7 @@ jobs:
             echo "Android NDK/Gradle not present on runner; skipping APK."
           fi
 
-      - name: Build and sign release manifest
+      - name: Build and sign GitHub and server manifests
         env:
           TAILDRIVE_UPDATE_SIGNING_KEY: ${{ secrets.TAILDRIVE_UPDATE_SIGNING_KEY }}
           RELEASE_DIR: ${{ runner.temp }}/release-dist
@@ -137,23 +137,31 @@ jobs:
               "android-apk-arm64": release_dir / f"TailDrive-android-arm64-{short_sha}.apk",
           }
 
-          artifacts = {}
+          gh_artifacts = {}
+          server_artifacts = {}
           for key, path in candidates.items():
               if path.is_file():
                   h = hashlib.sha256()
                   with path.open("rb") as fh:
                       for chunk in iter(lambda: fh.read(1024 * 1024), b""):
                           h.update(chunk)
-                  artifacts[key] = {
+                  digest = h.hexdigest()
+                  size = path.stat().st_size
+                  gh_artifacts[key] = {
                       "url": f"{base_dl}/{path.name}",
-                      "sha256": h.hexdigest(),
-                      "size": path.stat().st_size,
+                      "sha256": digest,
+                      "size": size,
+                  }
+                  server_artifacts[key] = {
+                      "url": f"/v1/updates/artifacts/{path.name}",
+                      "sha256": digest,
+                      "size": size,
                   }
 
-          assert "macos-app-arm64" in artifacts, "missing macOS app artifact"
-          assert "server-darwin-arm64" in artifacts, "missing server artifact"
+          assert "macos-app-arm64" in gh_artifacts, "missing macOS app artifact"
+          assert "server-darwin-arm64" in gh_artifacts, "missing server artifact"
 
-          manifest = {
+          base_manifest = {
               "schema_version": 1,
               "channel": "main",
               "version": os.environ["VERSION"],
@@ -162,17 +170,27 @@ jobs:
               "published_at": os.environ["BUILT_AT"],
               "release_url": f"https://github.com/{repo}/releases/tag/{tag}",
               "notes": os.environ["NOTES"].strip(),
-              "artifacts": artifacts,
           }
-          manifest_path = release_dir / "manifest.json"
-          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+          gh_manifest = dict(base_manifest, artifacts=gh_artifacts)
+          (release_dir / "manifest.json").write_text(
+              json.dumps(gh_manifest, indent=2) + "\n", encoding="utf-8"
+          )
+
+          server_manifest = dict(base_manifest, artifacts=server_artifacts)
+          (release_dir / "server-manifest.json").write_text(
+              json.dumps(server_manifest, indent=2) + "\n", encoding="utf-8"
+          )
           PY
 
           ./target/release/taildrive-server release-sign \
             --manifest "${{ runner.temp }}/release-dist/manifest.json" \
             --output "${{ runner.temp }}/release-dist/manifest.json.sig"
+          ./target/release/taildrive-server release-sign \
+            --manifest "${{ runner.temp }}/release-dist/server-manifest.json" \
+            --output "${{ runner.temp }}/release-dist/server-manifest.json.sig"
 
-      - name: Publish immutable release and update main-latest pointer
+      - name: Publish immutable GitHub release and update main-latest pointer
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_DIR: ${{ runner.temp }}/release-dist
@@ -229,4 +247,80 @@ jobs:
             | tail -n +11 || true)
           for old_tag in $old_tags; do
             gh release delete "$old_tag" --yes --cleanup-tag || true
+          done
+
+      - name: Auto-update TailDrive server and publish local releases on macmini-ci
+        env:
+          RELEASE_DIR: ${{ runner.temp }}/release-dist
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+        run: |
+          set -eu
+          env_file="$HOME/.taildrive/taildrive.env"
+          releases_dir="$HOME/.taildrive/releases"
+          bin_dir="$HOME/.local/bin"
+
+          # 1. Auto-update taildrive-server + web UI first so server is ahead of clients.
+          if [ -f "$env_file" ]; then
+            if ! grep -q '^TAILDRIVE_RELEASES_DIR=' "$env_file"; then
+              printf '\nTAILDRIVE_RELEASES_DIR=%s\n' "$releases_dir" >> "$env_file"
+            fi
+            web_dir=$(awk -F= '/^TAILDRIVE_WEB_DIR=/{print substr($0, index($0, "=")+1); exit}' "$env_file" || true)
+          else
+            web_dir=""
+          fi
+
+          stage=$(mktemp -d)
+          trap 'rm -rf "$stage"' EXIT
+          tar -xzf "$RELEASE_DIR/taildrive-server-darwin-arm64-${SHORT_SHA}.tar.gz" -C "$stage"
+          chmod 755 "$stage/taildrive-server"
+          "$stage/taildrive-server" --version
+
+          mkdir -p "$bin_dir"
+          install -m 755 "$stage/taildrive-server" "$bin_dir/.taildrive-server.new.$$"
+          mv "$bin_dir/.taildrive-server.new.$$" "$bin_dir/taildrive-server"
+
+          if [ -n "$web_dir" ] && [ -d "$stage/web-dist" ]; then
+            parent_web=$(dirname "$web_dir")
+            mkdir -p "$parent_web"
+            rm -rf "${web_dir}.new.$$" "${web_dir}.bak.$$"
+            cp -R "$stage/web-dist" "${web_dir}.new.$$"
+            if [ -e "$web_dir" ]; then
+              mv "$web_dir" "${web_dir}.bak.$$"
+            fi
+            mv "${web_dir}.new.$$" "$web_dir"
+            rm -rf "${web_dir}.bak.$$"
+          fi
+
+          # 2. Publish artifacts + signed server manifest into ~/.taildrive/releases/
+          mkdir -p "$releases_dir/artifacts"
+          for file in \
+            "$RELEASE_DIR/TailDrive-macos-arm64-${SHORT_SHA}.zip" \
+            "$RELEASE_DIR/taildrive-server-darwin-arm64-${SHORT_SHA}.tar.gz" \
+            "$RELEASE_DIR/TailDrive-android-arm64-${SHORT_SHA}.apk"
+          do
+            if [ -f "$file" ]; then
+              base=$(basename "$file")
+              cp "$file" "$releases_dir/artifacts/.${base}.new.$$"
+              mv "$releases_dir/artifacts/.${base}.new.$$" "$releases_dir/artifacts/${base}"
+            fi
+          done
+
+          # Restart server BEFORE publishing the new manifest pointer so clients never
+          # pull a newer client release before the matching server is running.
+          uid=$(id -u)
+          if launchctl print "gui/${uid}/com.local.taildrive-server" >/dev/null 2>&1; then
+            launchctl kickstart -k "gui/${uid}/com.local.taildrive-server"
+          fi
+
+          # Atomically publish the signed server manifest pointer.
+          cp "$RELEASE_DIR/server-manifest.json.sig" "$releases_dir/.manifest.json.sig.new.$$"
+          mv "$releases_dir/.manifest.json.sig.new.$$" "$releases_dir/manifest.json.sig"
+          cp "$RELEASE_DIR/server-manifest.json" "$releases_dir/.manifest.json.new.$$"
+          mv "$releases_dir/.manifest.json.new.$$" "$releases_dir/manifest.json"
+
+          # Keep the 5 most recent artifacts per prefix in ~/.taildrive/releases/artifacts.
+          for prefix in "TailDrive-macos-arm64-" "taildrive-server-darwin-arm64-" "TailDrive-android-arm64-"; do
+            ls -1t "$releases_dir/artifacts/${prefix}"* 2>/dev/null | tail -n +6 | while IFS= read -r old_file; do
+              [ -n "$old_file" ] && rm -f "$old_file"
+            done
           done

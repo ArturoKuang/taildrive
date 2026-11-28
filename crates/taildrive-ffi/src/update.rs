@@ -163,20 +163,41 @@ pub fn check_for_update_with_key(
     public_key_b64: Option<String>,
     allow_dev_upgrade: bool,
 ) -> Result<UpdateCheck, FfiError> {
+    check_for_update_server_first(
+        artifact_key,
+        None,
+        None,
+        manifest_url,
+        public_key_b64,
+        allow_dev_upgrade,
+    )
+}
+
+#[uniffi::export]
+pub fn check_for_update_server_first(
+    artifact_key: String,
+    server_base_url: Option<String>,
+    bearer_token: Option<String>,
+    fallback_manifest_url: Option<String>,
+    public_key_b64: Option<String>,
+    allow_dev_upgrade: bool,
+) -> Result<UpdateCheck, FfiError> {
     let runtime = updater_runtime()?;
     let client = UpdaterClient::new()?;
     let current = update::current_build_info();
-    let url = manifest_url
+    let fallback_url = fallback_manifest_url
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(default_manifest_url);
     let key = public_key_b64
         .filter(|value| !value.trim().is_empty())
         .unwrap_or_else(default_public_key_b64);
 
-    let check = runtime.block_on(client.check_for_update(
+    let check = runtime.block_on(client.check_for_update_server_first(
         &current,
         &artifact_key,
-        &url,
+        server_base_url.as_deref(),
+        bearer_token.as_deref(),
+        &fallback_url,
         &key,
         allow_dev_upgrade,
     ))?;
@@ -197,12 +218,25 @@ pub fn download_update_artifact(
     dest_path: String,
     observer: Option<Box<dyn TransferObserver>>,
 ) -> Result<(), FfiError> {
+    download_update_artifact_with_auth(release, dest_path, None, None, observer)
+}
+
+#[uniffi::export]
+pub fn download_update_artifact_with_auth(
+    release: UpdateRelease,
+    dest_path: String,
+    auth_origin: Option<String>,
+    bearer_token: Option<String>,
+    observer: Option<Box<dyn TransferObserver>>,
+) -> Result<(), FfiError> {
     let runtime = updater_runtime()?;
     let client = UpdaterClient::new()?;
     let core_release: update::UpdateRelease = release.into();
-    runtime.block_on(client.download_verified_artifact(
+    runtime.block_on(client.download_verified_artifact_with_auth(
         &core_release,
         Path::new(&dest_path),
+        auth_origin.as_deref(),
+        bearer_token.as_deref(),
         |bytes, total| match observer.as_deref() {
             Some(cb) => cb.progress(bytes, total),
             None => true,
