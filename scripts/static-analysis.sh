@@ -154,17 +154,19 @@ fi
 if [[ "$RUN_RUST" -eq 1 ]]; then
   FMT_TARGETS=()
   if [[ "$STAGED_ONLY" -eq 1 ]]; then
-    for f in "${STAGED_FILES[@]}"; do
+    while IFS= read -r f; do
       [[ "$f" == *.rs && -f "$f" ]] && FMT_TARGETS+=("$f")
+    done < <(git diff --cached --name-only --diff-filter=A -- '*.rs' 2>/dev/null || true)
+    for f in "${STAGED_FILES[@]}"; do
+      [[ "$f" == crates/*/tests/formal_*.rs && -f "$f" ]] && FMT_TARGETS+=("$f")
     done
   else
     while IFS= read -r f; do
       [[ -n "$f" && -f "$f" ]] && FMT_TARGETS+=("$f")
     done < <(
       {
-        git diff --name-only origin/main...HEAD -- '*.rs' 2>/dev/null || true
-        git diff --name-only -- '*.rs' 2>/dev/null || true
-        git diff --cached --name-only -- '*.rs' 2>/dev/null || true
+        git diff --name-only --diff-filter=A origin/main...HEAD -- '*.rs' 2>/dev/null || true
+        git diff --cached --name-only --diff-filter=A -- '*.rs' 2>/dev/null || true
         find crates -path '*/tests/formal_*.rs' -type f 2>/dev/null || true
       } | sort -u
     )
