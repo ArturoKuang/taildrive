@@ -163,19 +163,16 @@ final class SyncWorker: @unchecked Sendable {
         let local = try mirror.scan()
 
         let localEntries = local.map { path, entry in
-            SyncEntry(
-                path: path, kind: entry.kind, sha256: entry.sha256,
-                lastSyncedSha256: checkpoint.files[path]?.sha256
-            )
+            SyncEntry(path: path, kind: entry.kind, sha256: entry.sha256)
         }
         let remoteEntries = remote.values.map { item in
-            SyncEntry(path: item.path, kind: item.kind, sha256: item.sha256, lastSyncedSha256: nil)
+            SyncEntry(path: item.path, kind: item.kind, sha256: item.sha256)
         }
         var baselineEntries: [SyncEntry] = checkpoint.files.map { path, version in
-            SyncEntry(path: path, kind: .file, sha256: version.sha256, lastSyncedSha256: nil)
+            SyncEntry(path: path, kind: .file, sha256: version.sha256)
         }
         for folder in checkpoint.folders where checkpoint.files[folder] == nil {
-            baselineEntries.append(SyncEntry(path: folder, kind: .folder, sha256: nil, lastSyncedSha256: nil))
+            baselineEntries.append(SyncEntry(path: folder, kind: .folder, sha256: nil))
         }
 
         let actions = try TailDriveFFI.planFolderSync(

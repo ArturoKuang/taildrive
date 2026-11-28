@@ -1238,25 +1238,13 @@ public struct SyncEntry: Equatable, Hashable {
     public var path: String
     public var kind: FileType
     public var sha256: String?
-    /**
-     * Legacy per-entry baseline hash on local entries. Prefer passing
-     * `baseline_entries` to `plan_folder_sync` so folders and deletions are
-     * tracked as well.
-     */
-    public var lastSyncedSha256: String?
 
     // Default memberwise initializers are never public by default, so we
     // declare one manually.
-    public init(path: String, kind: FileType, sha256: String?,
-        /**
-         * Legacy per-entry baseline hash on local entries. Prefer passing
-         * `baseline_entries` to `plan_folder_sync` so folders and deletions are
-         * tracked as well.
-         */lastSyncedSha256: String?) {
+    public init(path: String, kind: FileType, sha256: String?) {
         self.path = path
         self.kind = kind
         self.sha256 = sha256
-        self.lastSyncedSha256 = lastSyncedSha256
     }
 
 
@@ -1277,8 +1265,7 @@ public struct FfiConverterTypeSyncEntry: FfiConverterRustBuffer {
             try SyncEntry(
                 path: FfiConverterString.read(from: &buf),
                 kind: FfiConverterTypeFileType.read(from: &buf),
-                sha256: FfiConverterOptionString.read(from: &buf),
-                lastSyncedSha256: FfiConverterOptionString.read(from: &buf)
+                sha256: FfiConverterOptionString.read(from: &buf)
         )
     }
 
@@ -1286,7 +1273,6 @@ public struct FfiConverterTypeSyncEntry: FfiConverterRustBuffer {
         FfiConverterString.write(value.path, into: &buf)
         FfiConverterTypeFileType.write(value.kind, into: &buf)
         FfiConverterOptionString.write(value.sha256, into: &buf)
-        FfiConverterOptionString.write(value.lastSyncedSha256, into: &buf)
     }
 }
 

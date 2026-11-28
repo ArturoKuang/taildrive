@@ -32,29 +32,32 @@ final class TailDriveSyncKitTests: XCTestCase {
     }
 
     func testRustSyncPlanComparesBothSidesToTheLastSyncedHash() throws {
-        func entry(_ path: String, _ hash: String, baseline: String? = nil) -> SyncEntry {
-            SyncEntry(path: path, kind: .file, sha256: hash, lastSyncedSha256: baseline)
+        func entry(_ path: String, _ hash: String) -> SyncEntry {
+            SyncEntry(path: path, kind: .file, sha256: hash)
         }
         let a = String(repeating: "a", count: 64)
         let b = String(repeating: "b", count: 64)
         let c = String(repeating: "c", count: 64)
         let local = [
-            entry("conflict", a, baseline: c), entry("same", a),
-            entry("folder/new", a), entry("local-change", a, baseline: b),
-            entry("remote-change", b, baseline: b),
-            SyncEntry(path: "folder", kind: .folder, sha256: nil, lastSyncedSha256: nil),
+            entry("conflict", a), entry("same", a),
+            entry("folder/new", a), entry("local-change", a),
+            entry("remote-change", b),
+            SyncEntry(path: "folder", kind: .folder, sha256: nil),
         ]
         let remote = [
             entry("remote-change", a), entry("same", a), entry("conflict", b),
             entry("local-change", b), entry("remote-only", a),
         ]
-        XCTAssertEqual(try planFolderSync(localEntries: local, remoteEntries: remote, baselineEntries: []), [
+        let baseline = [
+            entry("conflict", c), entry("local-change", b), entry("remote-change", b),
+        ]
+        XCTAssertEqual(try planFolderSync(localEntries: local, remoteEntries: remote, baselineEntries: baseline), [
             .conflict(path: "conflict"), .createRemoteFolder(path: "folder"),
             .upload(path: "folder/new"), .upload(path: "local-change"),
             .download(path: "remote-change"), .download(path: "remote-only"),
         ])
         XCTAssertEqual(
-            try planFolderSync(localEntries: local, remoteEntries: remote + [entry("folder", b)], baselineEntries: []).filter {
+            try planFolderSync(localEntries: local, remoteEntries: remote + [entry("folder", b)], baselineEntries: baseline).filter {
                 if case .upload(path: "folder/new") = $0 { return true }
                 return false
             },

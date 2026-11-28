@@ -10,10 +10,6 @@ pub struct SyncEntry {
     pub path: String,
     pub kind: FileType,
     pub sha256: Option<String>,
-    /// Legacy per-entry baseline hash on local entries. Prefer passing
-    /// `baseline_entries` to `plan_folder_sync` so folders and deletions are
-    /// tracked as well.
-    pub last_synced_sha256: Option<String>,
 }
 
 #[derive(Debug, PartialEq, Eq, uniffi::Enum)]
@@ -92,8 +88,7 @@ pub fn plan_folder_sync(
                 } else {
                     let base_hash = base
                         .filter(|entry| entry.kind == FileType::File)
-                        .and_then(|entry| entry.sha256.as_ref())
-                        .or(left.last_synced_sha256.as_ref());
+                        .and_then(|entry| entry.sha256.as_ref());
                     if base_hash == right.sha256.as_ref() {
                         Some(SyncAction::Upload { path: name })
                     } else if base_hash == left.sha256.as_ref() {
@@ -211,7 +206,6 @@ mod tests {
             path: path.to_string(),
             kind: FileType::File,
             sha256: Some(hash.to_string()),
-            last_synced_sha256: None,
         }
     }
 
@@ -220,7 +214,6 @@ mod tests {
             path: path.to_string(),
             kind: FileType::Folder,
             sha256: None,
-            last_synced_sha256: None,
         }
     }
 
@@ -414,6 +407,135 @@ mod tests {
         let baseline = vec![folder("AI Notes"), file("AI Notes/old.md", &h1)];
         let actions = plan_folder_sync(vec![], vec![], baseline).unwrap();
         assert!(actions.is_empty());
+    }
+
+    #[test]
+    fn both_sides_compare_to_baseline_entries() {
+        let a = "a".repeat(64);
+        let b = "b".repeat(64);
+        let c = "c".repeat(64);
+        let local = || {
+            vec![
+                file("conflict", &a),
+                file("same", &a),
+                folder("folder"),
+                file("folder/new", &a),
+                file("local-change", &a),
+                file("remote-change", &b),
+            ]
+        };
+        let remote = || {
+            vec![
+                file("remote-change", &a),
+                file("same", &a),
+                file("conflict", &b),
+                file("local-change", &b),
+                file("remote-only", &a),
+            ]
+        };
+        let baseline = || {
+            vec![
+                file("conflict", &c),
+                file("local-change", &b),
+                file("remote-change", &b),
+            ]
+        };
+        assert_eq!(
+            plan_folder_sync(local(), remote(), baseline()).unwrap(),
+            vec![
+                SyncAction::Conflict {
+                    path: "conflict".into(),
+                },
+                SyncAction::CreateRemoteFolder {
+                    path: "folder".into(),
+                },
+                SyncAction::Upload {
+                    path: "folder/new".into(),
+                },
+                SyncAction::Upload {
+                    path: "local-change".into(),
+                },
+                SyncAction::Download {
+                    path: "remote-change".into(),
+                },
+                SyncAction::Download {
+                    path: "remote-only".into(),
+                },
+            ]
+        );
+
+        assert!(
+            plan_folder_sync(
+                vec![file("same", &a)],
+                vec![file("same", &a)],
+                vec![file("same", &c)],
+            )
+            .unwrap()
+            .is_empty()
+        );
+
+        assert_eq!(
+            plan_folder_sync(vec![file("note.md", &a)], vec![file("note.md", &b)], vec![]).unwrap(),
+            vec![SyncAction::Conflict {
+                path: "note.md".into(),
+            }]
+        );
+
+        let mut remote_file_at_folder = remote();
+        remote_file_at_folder.push(file("folder", &b));
+        let actions = plan_folder_sync(local(), remote_file_at_folder, baseline()).unwrap();
+        assert!(actions.iter().all(|action| !matches!(
+            action,
+            SyncAction::Upload { path } if path == "folder/new"
+        )));
+    }
+
+    #[test]
+    fn duplicate_paths_and_files_without_sha256_are_invalid() {
+        let hash = "a".repeat(64);
+        let duplicate = plan_folder_sync(
+            vec![file("notes/a.md", &hash), file("notes/a.md", &hash)],
+            vec![],
+            vec![],
+        );
+        assert!(matches!(duplicate, Err(FfiError::InvalidPath { .. })));
+
+        let missing_hash = plan_folder_sync(
+            vec![SyncEntry {
+                path: "notes/a.md".into(),
+                kind: FileType::File,
+                sha256: None,
+            }],
+            vec![],
+            vec![],
+        );
+        assert!(matches!(missing_hash, Err(FfiError::InvalidPath { .. })));
+
+        let folder_with_hash = plan_folder_sync(
+            vec![SyncEntry {
+                path: "notes".into(),
+                kind: FileType::Folder,
+                sha256: Some(hash),
+            }],
+            vec![],
+            vec![],
+        );
+        assert!(matches!(
+            folder_with_hash,
+            Err(FfiError::InvalidPath { .. })
+        ));
+    }
+
+    #[test]
+    fn nfc_equivalent_paths_are_the_same_entry() {
+        let a = "a".repeat(64);
+        let b = "b".repeat(64);
+        let composed = plan_folder_sync(
+            vec![file("caf\u{e9}.txt", &a), file("cafe\u{301}.txt", &b)],
+            vec![],
+            vec![],
+        );
+        assert!(matches!(composed, Err(FfiError::InvalidPath { .. })));
     }
 
     #[test]
