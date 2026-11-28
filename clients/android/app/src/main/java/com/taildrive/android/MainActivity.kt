@@ -129,6 +129,14 @@ private fun TailDriveApp(model: DriveViewModel = viewModel()) {
         }
     }
 
+    fun openUrl(url: String) {
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: ActivityNotFoundException) {
+            model.notify("No browser found to open $url")
+        }
+    }
+
     fun upload() {
         uploadParent = state.path
         openFile.launch(arrayOf("*/*"))
@@ -250,7 +258,7 @@ private fun TailDriveApp(model: DriveViewModel = viewModel()) {
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
                 state.initializing -> CircularProgressIndicator(Modifier.size(28.dp).align(Alignment.Center))
-                state.showSetup -> SetupPane(state, network, model::connect, ::openTailscale)
+                state.showSetup -> SetupPane(state, network, model::connect, ::openTailscale, model::checkForUpdates, ::openUrl)
                 else -> Column(Modifier.fillMaxSize()) {
                     if (network != NetworkState.Connected) {
                         NetworkBanner(network, model::refresh, ::openTailscale)

@@ -84,6 +84,8 @@ internal fun SetupPane(
     network: NetworkState,
     connect: (String, String) -> Unit,
     openTailscale: () -> Unit,
+    checkForUpdates: () -> Unit,
+    openUrl: (String) -> Unit,
 ) {
     var host by rememberSaveable(state.connection?.url) {
         mutableStateOf(state.connection?.url?.trimEnd('/') ?: DEFAULT_SERVER)
@@ -147,6 +149,35 @@ internal fun SetupPane(
                     Spacer(Modifier.width(8.dp))
                 }
                 Text(if (state.testing) "Testing connection…" else "Test connection")
+            }
+            HorizontalDivider(thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Updates", style = MaterialTheme.typography.titleMedium)
+                state.update.currentVersion?.let {
+                    Text("Installed: $it", style = monospace, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                state.update.availableVersion?.let { nextVersion ->
+                    Text("New release available: $nextVersion", style = MaterialTheme.typography.bodyMedium)
+                }
+                state.update.notes?.let { notes ->
+                    Text(notes, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                if (state.update.upToDate) {
+                    Text("You are on the latest release.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                state.update.error?.let { err ->
+                    Text(err, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(enabled = !state.update.checking, onClick = checkForUpdates) {
+                        Text(if (state.update.checking) "Checking…" else "Check for updates")
+                    }
+                    state.update.downloadUrl?.let { url ->
+                        Button(onClick = { openUrl(url) }, shape = MaterialTheme.shapes.small) {
+                            Text("Download APK")
+                        }
+                    }
+                }
             }
         }
     }

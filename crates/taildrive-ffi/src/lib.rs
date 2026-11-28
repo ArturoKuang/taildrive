@@ -1,6 +1,7 @@
 mod models;
 mod sync;
 mod transfer;
+mod update;
 
 #[cfg(target_os = "android")]
 mod android;
@@ -18,6 +19,7 @@ use tokio::runtime::{Builder, Runtime};
 pub use models::*;
 pub use sync::*;
 pub use transfer::TransferObserver;
+pub use update::*;
 
 uniffi::setup_scaffolding!();
 

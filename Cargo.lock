@@ -2613,13 +2613,16 @@ dependencies = [
 name = "taildrive-core"
 version = "0.1.0"
 dependencies = [
+ "base64",
  "bytes",
  "futures-util",
  "hex",
  "reqwest",
+ "ring",
  "serde",
  "serde_json",
  "sha2",
+ "tempfile",
  "thiserror",
  "tokio",
  "unicode-normalization",

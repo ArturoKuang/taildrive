@@ -826,6 +826,76 @@ public func FfiConverterTypeTailDriveFfiClient_lower(_ value: TailDriveFfiClient
 
 
 
+public struct BuildInfo: Equatable, Hashable {
+    public var version: String
+    public var channel: String
+    public var buildNumber: UInt64
+    public var commitSha: String
+    public var shortSha: String
+    public var builtAt: String
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(version: String, channel: String, buildNumber: UInt64, commitSha: String, shortSha: String, builtAt: String) {
+        self.version = version
+        self.channel = channel
+        self.buildNumber = buildNumber
+        self.commitSha = commitSha
+        self.shortSha = shortSha
+        self.builtAt = builtAt
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension BuildInfo: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeBuildInfo: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> BuildInfo {
+        return
+            try BuildInfo(
+                version: FfiConverterString.read(from: &buf),
+                channel: FfiConverterString.read(from: &buf),
+                buildNumber: FfiConverterUInt64.read(from: &buf),
+                commitSha: FfiConverterString.read(from: &buf),
+                shortSha: FfiConverterString.read(from: &buf),
+                builtAt: FfiConverterString.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: BuildInfo, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.version, into: &buf)
+        FfiConverterString.write(value.channel, into: &buf)
+        FfiConverterUInt64.write(value.buildNumber, into: &buf)
+        FfiConverterString.write(value.commitSha, into: &buf)
+        FfiConverterString.write(value.shortSha, into: &buf)
+        FfiConverterString.write(value.builtAt, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBuildInfo_lift(_ buf: RustBuffer) throws -> BuildInfo {
+    return try FfiConverterTypeBuildInfo.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeBuildInfo_lower(_ value: BuildInfo) -> RustBuffer {
+    return FfiConverterTypeBuildInfo.lower(value)
+}
+
+
 public struct DeleteResponse: Equatable, Hashable {
     public var deleted: Bool
     public var path: String
@@ -1292,6 +1362,100 @@ public func FfiConverterTypeSyncEntry_lower(_ value: SyncEntry) -> RustBuffer {
 }
 
 
+public struct UpdateRelease: Equatable, Hashable {
+    public var version: String
+    public var channel: String
+    public var buildNumber: UInt64
+    public var commitSha: String
+    public var shortSha: String
+    public var publishedAt: String
+    public var releaseUrl: String
+    public var notes: String
+    public var artifactKey: String
+    public var downloadUrl: String
+    public var sha256: String
+    public var sizeBytes: UInt64
+
+    // Default memberwise initializers are never public by default, so we
+    // declare one manually.
+    public init(version: String, channel: String, buildNumber: UInt64, commitSha: String, shortSha: String, publishedAt: String, releaseUrl: String, notes: String, artifactKey: String, downloadUrl: String, sha256: String, sizeBytes: UInt64) {
+        self.version = version
+        self.channel = channel
+        self.buildNumber = buildNumber
+        self.commitSha = commitSha
+        self.shortSha = shortSha
+        self.publishedAt = publishedAt
+        self.releaseUrl = releaseUrl
+        self.notes = notes
+        self.artifactKey = artifactKey
+        self.downloadUrl = downloadUrl
+        self.sha256 = sha256
+        self.sizeBytes = sizeBytes
+    }
+
+
+
+
+}
+
+#if compiler(>=6)
+extension UpdateRelease: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeUpdateRelease: FfiConverterRustBuffer {
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UpdateRelease {
+        return
+            try UpdateRelease(
+                version: FfiConverterString.read(from: &buf),
+                channel: FfiConverterString.read(from: &buf),
+                buildNumber: FfiConverterUInt64.read(from: &buf),
+                commitSha: FfiConverterString.read(from: &buf),
+                shortSha: FfiConverterString.read(from: &buf),
+                publishedAt: FfiConverterString.read(from: &buf),
+                releaseUrl: FfiConverterString.read(from: &buf),
+                notes: FfiConverterString.read(from: &buf),
+                artifactKey: FfiConverterString.read(from: &buf),
+                downloadUrl: FfiConverterString.read(from: &buf),
+                sha256: FfiConverterString.read(from: &buf),
+                sizeBytes: FfiConverterUInt64.read(from: &buf)
+        )
+    }
+
+    public static func write(_ value: UpdateRelease, into buf: inout [UInt8]) {
+        FfiConverterString.write(value.version, into: &buf)
+        FfiConverterString.write(value.channel, into: &buf)
+        FfiConverterUInt64.write(value.buildNumber, into: &buf)
+        FfiConverterString.write(value.commitSha, into: &buf)
+        FfiConverterString.write(value.shortSha, into: &buf)
+        FfiConverterString.write(value.publishedAt, into: &buf)
+        FfiConverterString.write(value.releaseUrl, into: &buf)
+        FfiConverterString.write(value.notes, into: &buf)
+        FfiConverterString.write(value.artifactKey, into: &buf)
+        FfiConverterString.write(value.downloadUrl, into: &buf)
+        FfiConverterString.write(value.sha256, into: &buf)
+        FfiConverterUInt64.write(value.sizeBytes, into: &buf)
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUpdateRelease_lift(_ buf: RustBuffer) throws -> UpdateRelease {
+    return try FfiConverterTypeUpdateRelease.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUpdateRelease_lower(_ value: UpdateRelease) -> RustBuffer {
+    return FfiConverterTypeUpdateRelease.lower(value)
+}
+
+
 public struct UploadResult: Equatable, Hashable {
     public var item: FileItem
     public var quota: QuotaInfo
@@ -1747,6 +1911,79 @@ public func FfiConverterTypeSyncAction_lower(_ value: SyncAction) -> RustBuffer 
 
 
 
+public enum UpdateCheck: Equatable, Hashable {
+
+    case upToDate(current: BuildInfo
+    )
+    case available(current: BuildInfo, release: UpdateRelease
+    )
+
+
+
+
+
+}
+
+#if compiler(>=6)
+extension UpdateCheck: Sendable {}
+#endif
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public struct FfiConverterTypeUpdateCheck: FfiConverterRustBuffer {
+    typealias SwiftType = UpdateCheck
+
+    public static func read(from buf: inout (data: Data, offset: Data.Index)) throws -> UpdateCheck {
+        let variant: Int32 = try readInt(&buf)
+        switch variant {
+
+        case 1: return .upToDate(current: try FfiConverterTypeBuildInfo.read(from: &buf)
+        )
+
+        case 2: return .available(current: try FfiConverterTypeBuildInfo.read(from: &buf), release: try FfiConverterTypeUpdateRelease.read(from: &buf)
+        )
+
+        default: throw UniffiInternalError.unexpectedEnumCase
+        }
+    }
+
+    public static func write(_ value: UpdateCheck, into buf: inout [UInt8]) {
+        switch value {
+
+
+        case let .upToDate(current):
+            writeInt(&buf, Int32(1))
+            FfiConverterTypeBuildInfo.write(current, into: &buf)
+
+
+        case let .available(current,release):
+            writeInt(&buf, Int32(2))
+            FfiConverterTypeBuildInfo.write(current, into: &buf)
+            FfiConverterTypeUpdateRelease.write(release, into: &buf)
+
+        }
+    }
+}
+
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUpdateCheck_lift(_ buf: RustBuffer) throws -> UpdateCheck {
+    return try FfiConverterTypeUpdateCheck.lift(buf)
+}
+
+#if swift(>=5.8)
+@_documentation(visibility: private)
+#endif
+public func FfiConverterTypeUpdateCheck_lower(_ value: UpdateCheck) -> RustBuffer {
+    return FfiConverterTypeUpdateCheck.lower(value)
+}
+
+
+
+
 
 /**
  * Return false to cancel. During upload, bytes represent body data sent;
@@ -2119,6 +2356,43 @@ public func planFolderSync(localEntries: [SyncEntry], remoteEntries: [SyncEntry]
     )
 })
 }
+public func checkForUpdate(artifactKey: String, manifestUrl: String?, allowDevUpgrade: Bool)throws  -> UpdateCheck  {
+    return try  FfiConverterTypeUpdateCheck_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_check_for_update(
+        FfiConverterString.lower(artifactKey),
+        FfiConverterOptionString.lower(manifestUrl),
+        FfiConverterBool.lower(allowDevUpgrade),uniffiCallStatus
+    )
+})
+}
+public func checkForUpdateWithKey(artifactKey: String, manifestUrl: String?, publicKeyB64: String?, allowDevUpgrade: Bool)throws  -> UpdateCheck  {
+    return try  FfiConverterTypeUpdateCheck_lift(try rustCallWithError(FfiConverterTypeFfiError_lift) {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_check_for_update_with_key(
+        FfiConverterString.lower(artifactKey),
+        FfiConverterOptionString.lower(manifestUrl),
+        FfiConverterOptionString.lower(publicKeyB64),
+        FfiConverterBool.lower(allowDevUpgrade),uniffiCallStatus
+    )
+})
+}
+public func currentBuildInfo() -> BuildInfo  {
+    return try!  FfiConverterTypeBuildInfo_lift(try! rustCall() {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_current_build_info(uniffiCallStatus
+    )
+})
+}
+public func downloadUpdateArtifact(release: UpdateRelease, destPath: String, observer: TransferObserver?)throws   {try rustCallWithError(FfiConverterTypeFfiError_lift) {
+        uniffiCallStatus in
+    uniffi_taildrive_ffi_fn_func_download_update_artifact(
+        FfiConverterTypeUpdateRelease_lower(release),
+        FfiConverterString.lower(destPath),
+        FfiConverterOptionCallbackInterfaceTransferObserver.lower(observer),uniffiCallStatus
+    )
+}
+}
 
 private enum InitializationResult {
     case ok
@@ -2145,6 +2419,18 @@ private let initializationResult: InitializationResult = {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taildrive_ffi_checksum_func_plan_folder_sync() != 469) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taildrive_ffi_checksum_func_check_for_update() != 14447) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taildrive_ffi_checksum_func_check_for_update_with_key() != 52582) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taildrive_ffi_checksum_func_current_build_info() != 10336) {
+        return InitializationResult.apiChecksumMismatch
+    }
+    if (uniffi_taildrive_ffi_checksum_func_download_update_artifact() != 12540) {
         return InitializationResult.apiChecksumMismatch
     }
     if (uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() != 40067) {

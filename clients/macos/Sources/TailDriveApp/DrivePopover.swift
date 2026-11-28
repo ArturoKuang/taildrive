@@ -4,6 +4,7 @@ import TailDriveSyncKit
 
 struct DrivePopover: View {
     @ObservedObject var model: SyncModel
+    @ObservedObject var updater: AppUpdater
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.colorSchemeContrast) private var contrast
@@ -17,6 +18,7 @@ struct DrivePopover: View {
             header
             Divider()
             quota
+            if let banner = updateBanner { banner }
             if let message = statusMessage ?? model.syncError { statusBanner(message) }
             Divider()
             ScrollView {
@@ -176,6 +178,80 @@ struct DrivePopover: View {
         case .unreachable: return "Could not reach \(model.node). Check your Tailscale connection."
         case .unauthorized: return "Sign-in failed. Check your API token or Tailscale identity."
         case .error(let message): return message
+        }
+    }
+
+    private var updateBanner: AnyView? {
+        switch updater.state {
+        case .available(let release):
+            return AnyView(
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.down.circle.fill").foregroundStyle(accent)
+                        Text("Update available (\(release.shortSha))")
+                            .font(.system(size: 11, weight: .semibold))
+                            .lineLimit(1)
+                        Spacer(minLength: 0)
+                        Button("Update & Restart") {
+                            updater.installUpdate(
+                                release,
+                                beforeExit: { model.prepareForShutdown() },
+                                terminate: { NSApp.terminate(nil) }
+                            )
+                        }
+                        .controlSize(.small)
+                    }
+                    if !release.notes.isEmpty {
+                        Text(release.notes)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
+                .padding(8)
+                .background(accent.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+            )
+        case .downloading(let release, let fraction):
+            return AnyView(
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Downloading TailDrive \(release.shortSha)…")
+                        .font(.system(size: 11, weight: .medium))
+                    if let fraction {
+                        ProgressView(value: fraction)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+                .padding(8)
+                .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            )
+        case .installing(let release):
+            return AnyView(
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text("Installing \(release.shortSha) and restarting…")
+                        .font(.system(size: 11))
+                }
+                .padding(8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(accent.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            )
+        case .error(let message):
+            return AnyView(
+                HStack(spacing: 6) {
+                    Text("Update failed: \(message)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                    Button("Retry") { updater.checkForUpdates(manual: true) }
+                        .controlSize(.mini)
+                }
+                .padding(6)
+                .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            )
+        case .idle, .checking, .upToDate:
+            return nil
         }
     }
 

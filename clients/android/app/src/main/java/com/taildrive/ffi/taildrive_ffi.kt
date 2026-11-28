@@ -705,6 +705,14 @@ internal object IntegrityCheckingUniffiLib {
     ): Int
     external fun uniffi_taildrive_ffi_checksum_func_plan_folder_sync(
     ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_check_for_update(
+    ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_check_for_update_with_key(
+    ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_current_build_info(
+    ): Int
+    external fun uniffi_taildrive_ffi_checksum_func_download_update_artifact(
+    ): Int
     external fun uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder(
     ): Int
     external fun uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_share(
@@ -790,6 +798,14 @@ internal object UniffiLib {
     ): RustBuffer.ByValue
     external fun uniffi_taildrive_ffi_fn_func_plan_folder_sync(`localEntries`: RustBuffer.ByValue,`remoteEntries`: RustBuffer.ByValue,`baselineEntries`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
+    external fun uniffi_taildrive_ffi_fn_func_check_for_update(`artifactKey`: RustBuffer.ByValue,`manifestUrl`: RustBuffer.ByValue,`allowDevUpgrade`: Byte,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_taildrive_ffi_fn_func_check_for_update_with_key(`artifactKey`: RustBuffer.ByValue,`manifestUrl`: RustBuffer.ByValue,`publicKeyB64`: RustBuffer.ByValue,`allowDevUpgrade`: Byte,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_taildrive_ffi_fn_func_current_build_info(uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    external fun uniffi_taildrive_ffi_fn_func_download_update_artifact(`release`: RustBuffer.ByValue,`destPath`: RustBuffer.ByValue,`observer`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
     external fun ffi_taildrive_ffi_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus,
     ): RustBuffer.ByValue
     external fun ffi_taildrive_ffi_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus,
@@ -919,6 +935,18 @@ private fun uniffiCheckApiChecksums(lib: IntegrityCheckingUniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_taildrive_ffi_checksum_func_plan_folder_sync() and 0xFFFF) != 469) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_check_for_update() and 0xFFFF) != 14447) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_check_for_update_with_key() and 0xFFFF) != 52582) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_current_build_info() and 0xFFFF) != 10336) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if ((lib.uniffi_taildrive_ffi_checksum_func_download_update_artifact() and 0xFFFF) != 12540) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if ((lib.uniffi_taildrive_ffi_checksum_method_taildrivefficlient_create_folder() and 0xFFFF) != 40067) {
@@ -1724,6 +1752,64 @@ public object FfiConverterTypeTailDriveFfiClient: FfiConverter<TailDriveFfiClien
 
 
 
+data class BuildInfo (
+    var `version`: kotlin.String
+    ,
+    var `channel`: kotlin.String
+    ,
+    var `buildNumber`: kotlin.ULong
+    ,
+    var `commitSha`: kotlin.String
+    ,
+    var `shortSha`: kotlin.String
+    ,
+    var `builtAt`: kotlin.String
+
+){
+
+
+
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeBuildInfo: FfiConverterRustBuffer<BuildInfo> {
+    override fun read(buf: ByteBuffer): BuildInfo {
+        return BuildInfo(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterULong.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: BuildInfo) = (
+            FfiConverterString.allocationSize(value.`version`) +
+            FfiConverterString.allocationSize(value.`channel`) +
+            FfiConverterULong.allocationSize(value.`buildNumber`) +
+            FfiConverterString.allocationSize(value.`commitSha`) +
+            FfiConverterString.allocationSize(value.`shortSha`) +
+            FfiConverterString.allocationSize(value.`builtAt`)
+    )
+
+    override fun write(value: BuildInfo, buf: ByteBuffer) {
+            FfiConverterString.write(value.`version`, buf)
+            FfiConverterString.write(value.`channel`, buf)
+            FfiConverterULong.write(value.`buildNumber`, buf)
+            FfiConverterString.write(value.`commitSha`, buf)
+            FfiConverterString.write(value.`shortSha`, buf)
+            FfiConverterString.write(value.`builtAt`, buf)
+    }
+}
+
+
+
 data class DeleteResponse (
     var `deleted`: kotlin.Boolean
     ,
@@ -2095,6 +2181,94 @@ public object FfiConverterTypeSyncEntry: FfiConverterRustBuffer<SyncEntry> {
             FfiConverterString.write(value.`path`, buf)
             FfiConverterTypeFileType.write(value.`kind`, buf)
             FfiConverterOptionalString.write(value.`sha256`, buf)
+    }
+}
+
+
+
+data class UpdateRelease (
+    var `version`: kotlin.String
+    ,
+    var `channel`: kotlin.String
+    ,
+    var `buildNumber`: kotlin.ULong
+    ,
+    var `commitSha`: kotlin.String
+    ,
+    var `shortSha`: kotlin.String
+    ,
+    var `publishedAt`: kotlin.String
+    ,
+    var `releaseUrl`: kotlin.String
+    ,
+    var `notes`: kotlin.String
+    ,
+    var `artifactKey`: kotlin.String
+    ,
+    var `downloadUrl`: kotlin.String
+    ,
+    var `sha256`: kotlin.String
+    ,
+    var `sizeBytes`: kotlin.ULong
+
+){
+
+
+
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeUpdateRelease: FfiConverterRustBuffer<UpdateRelease> {
+    override fun read(buf: ByteBuffer): UpdateRelease {
+        return UpdateRelease(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterULong.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterULong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: UpdateRelease) = (
+            FfiConverterString.allocationSize(value.`version`) +
+            FfiConverterString.allocationSize(value.`channel`) +
+            FfiConverterULong.allocationSize(value.`buildNumber`) +
+            FfiConverterString.allocationSize(value.`commitSha`) +
+            FfiConverterString.allocationSize(value.`shortSha`) +
+            FfiConverterString.allocationSize(value.`publishedAt`) +
+            FfiConverterString.allocationSize(value.`releaseUrl`) +
+            FfiConverterString.allocationSize(value.`notes`) +
+            FfiConverterString.allocationSize(value.`artifactKey`) +
+            FfiConverterString.allocationSize(value.`downloadUrl`) +
+            FfiConverterString.allocationSize(value.`sha256`) +
+            FfiConverterULong.allocationSize(value.`sizeBytes`)
+    )
+
+    override fun write(value: UpdateRelease, buf: ByteBuffer) {
+            FfiConverterString.write(value.`version`, buf)
+            FfiConverterString.write(value.`channel`, buf)
+            FfiConverterULong.write(value.`buildNumber`, buf)
+            FfiConverterString.write(value.`commitSha`, buf)
+            FfiConverterString.write(value.`shortSha`, buf)
+            FfiConverterString.write(value.`publishedAt`, buf)
+            FfiConverterString.write(value.`releaseUrl`, buf)
+            FfiConverterString.write(value.`notes`, buf)
+            FfiConverterString.write(value.`artifactKey`, buf)
+            FfiConverterString.write(value.`downloadUrl`, buf)
+            FfiConverterString.write(value.`sha256`, buf)
+            FfiConverterULong.write(value.`sizeBytes`, buf)
     }
 }
 
@@ -2600,6 +2774,93 @@ public object FfiConverterTypeSyncAction : FfiConverterRustBuffer<SyncAction>{
 
 
 
+sealed class UpdateCheck {
+
+    data class UpToDate(
+        val `current`: com.taildrive.ffi.BuildInfo) : UpdateCheck()
+
+    {
+
+
+        companion object
+    }
+
+    data class Available(
+        val `current`: com.taildrive.ffi.BuildInfo,
+        val `release`: com.taildrive.ffi.UpdateRelease) : UpdateCheck()
+
+    {
+
+
+        companion object
+    }
+
+
+
+
+
+
+
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeUpdateCheck : FfiConverterRustBuffer<UpdateCheck>{
+    override fun read(buf: ByteBuffer): UpdateCheck {
+        return when(buf.getInt()) {
+            1 -> UpdateCheck.UpToDate(
+                FfiConverterTypeBuildInfo.read(buf),
+                )
+            2 -> UpdateCheck.Available(
+                FfiConverterTypeBuildInfo.read(buf),
+                FfiConverterTypeUpdateRelease.read(buf),
+                )
+            else -> throw RuntimeException("invalid enum value, something is very wrong!!")
+        }
+    }
+
+    override fun allocationSize(value: UpdateCheck): ULong = when(value) {
+        is UpdateCheck.UpToDate -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeBuildInfo.allocationSize(value.`current`)
+            )
+        }
+        is UpdateCheck.Available -> {
+            // Add the size for the Int that specifies the variant plus the size needed for all fields
+            (
+                4UL
+                + FfiConverterTypeBuildInfo.allocationSize(value.`current`)
+                + FfiConverterTypeUpdateRelease.allocationSize(value.`release`)
+            )
+        }
+    }
+
+    override fun write(value: UpdateCheck, buf: ByteBuffer) {
+        when(value) {
+            is UpdateCheck.UpToDate -> {
+                buf.putInt(1)
+                FfiConverterTypeBuildInfo.write(value.`current`, buf)
+                Unit
+            }
+            is UpdateCheck.Available -> {
+                buf.putInt(2)
+                FfiConverterTypeBuildInfo.write(value.`current`, buf)
+                FfiConverterTypeUpdateRelease.write(value.`release`, buf)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -2954,6 +3215,58 @@ public object FfiConverterSequenceTypeSyncAction: FfiConverterRustBuffer<List<Sy
 }
     )
     }
+
+
+    @Throws(FfiException::class) fun `checkForUpdate`(`artifactKey`: kotlin.String, `manifestUrl`: kotlin.String?, `allowDevUpgrade`: kotlin.Boolean): UpdateCheck {
+            return FfiConverterTypeUpdateCheck.lift(
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_check_for_update(
+
+
+        FfiConverterString.lower(`artifactKey`),
+        FfiConverterOptionalString.lower(`manifestUrl`),
+        FfiConverterBoolean.lower(`allowDevUpgrade`),_status)
+}
+    )
+    }
+
+
+    @Throws(FfiException::class) fun `checkForUpdateWithKey`(`artifactKey`: kotlin.String, `manifestUrl`: kotlin.String?, `publicKeyB64`: kotlin.String?, `allowDevUpgrade`: kotlin.Boolean): UpdateCheck {
+            return FfiConverterTypeUpdateCheck.lift(
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_check_for_update_with_key(
+
+
+        FfiConverterString.lower(`artifactKey`),
+        FfiConverterOptionalString.lower(`manifestUrl`),
+        FfiConverterOptionalString.lower(`publicKeyB64`),
+        FfiConverterBoolean.lower(`allowDevUpgrade`),_status)
+}
+    )
+    }
+
+ fun `currentBuildInfo`(): BuildInfo {
+            return FfiConverterTypeBuildInfo.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_current_build_info(
+
+        _status)
+}
+    )
+    }
+
+
+    @Throws(FfiException::class) fun `downloadUpdateArtifact`(`release`: UpdateRelease, `destPath`: kotlin.String, `observer`: TransferObserver?)
+        =
+    uniffiRustCallWithError(FfiException) { _status ->
+    UniffiLib.uniffi_taildrive_ffi_fn_func_download_update_artifact(
+
+
+        FfiConverterTypeUpdateRelease.lower(`release`),
+        FfiConverterString.lower(`destPath`),
+        FfiConverterOptionalTypeTransferObserver.lower(`observer`),_status)
+}
+
 
 
 

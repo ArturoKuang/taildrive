@@ -12,8 +12,8 @@ android {
         applicationId = "com.taildrive.android"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = System.getenv("TAILDRIVE_BUILD_NUMBER")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        versionName = System.getenv("TAILDRIVE_VERSION_NAME")?.takeIf { it.isNotBlank() } ?: "0.1.0"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86", "x86_64") }
     }
 

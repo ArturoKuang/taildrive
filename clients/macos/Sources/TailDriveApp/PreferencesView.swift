@@ -4,6 +4,7 @@ import TailDriveSyncKit
 
 struct PreferencesView: View {
     @ObservedObject var model: SyncModel
+    @ObservedObject var updater: AppUpdater
     @Environment(\.dismiss) private var dismiss
     @State private var address = ""
     @State private var token = ""
@@ -37,6 +38,36 @@ struct PreferencesView: View {
                 .keyboardShortcut(.defaultAction)
                 .disabled(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || model.saving)
             }
+            Divider()
+            Toggle("Automatically check for releases on main", isOn: $updater.autoCheckEnabled)
+            LabeledContent("Current version") {
+                HStack(spacing: 8) {
+                    Text(updater.currentBuild.version)
+                        .font(.system(.body, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    if let release = updater.state.availableRelease {
+                        Button("Update & Restart") {
+                            updater.installUpdate(
+                                release,
+                                beforeExit: { model.prepareForShutdown() },
+                                terminate: { NSApp.terminate(nil) }
+                            )
+                        }
+                        .disabled(updater.state.isBusy)
+                    } else {
+                        Button("Check for Updates") {
+                            updater.checkForUpdates(manual: true)
+                        }
+                        .disabled(updater.state.isBusy)
+                    }
+                }
+            }
+            if let summary = updateStatusSummary {
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(isUpdateError ? .red : .secondary)
+            }
         }
         .padding(20)
         .frame(width: 480)
@@ -44,6 +75,33 @@ struct PreferencesView: View {
             address = model.configuration?.server.absoluteString ?? ""
             folder = model.folder
             do { token = try model.token() } catch { self.error = error.localizedDescription }
+        }
+    }
+
+    private var isUpdateError: Bool {
+        if case .error = updater.state { return true }
+        return false
+    }
+
+    private var updateStatusSummary: String? {
+        switch updater.state {
+        case .idle:
+            return nil
+        case .checking:
+            return "Checking GitHub Releases…"
+        case .upToDate:
+            return "You are on the latest release (\(updater.currentBuild.shortSha))."
+        case .available(let release):
+            return "New build available: \(release.version)"
+        case .downloading(let release, let fraction):
+            if let fraction {
+                return "Downloading \(release.shortSha) (\(Int(fraction * 100))%)…"
+            }
+            return "Downloading \(release.shortSha)…"
+        case .installing(let release):
+            return "Installing \(release.shortSha) and restarting…"
+        case .error(let message):
+            return message
         }
     }
 

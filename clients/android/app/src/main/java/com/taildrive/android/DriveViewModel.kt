@@ -25,6 +25,16 @@ import kotlinx.coroutines.withContext
 internal enum class DriveTab(val title: String) { Files("Files"), Backup("Backup"), Transfers("Transfers") }
 internal enum class FileSort(val label: String) { Name("Name"), Largest("Largest"), Modified("Modified") }
 
+internal data class UpdateBannerState(
+    val currentVersion: String? = null,
+    val checking: Boolean = false,
+    val upToDate: Boolean = false,
+    val availableVersion: String? = null,
+    val downloadUrl: String? = null,
+    val notes: String? = null,
+    val error: String? = null,
+)
+
 internal data class BrowserState(
     val initializing: Boolean = true,
     val editingConnection: Boolean = false,
@@ -43,6 +53,7 @@ internal data class BrowserState(
     val quotaAlert: String? = null,
     val preview: PreviewState? = null,
     val share: ShareLink? = null,
+    val update: UpdateBannerState = UpdateBannerState(),
 ) {
     val showSetup: Boolean get() = !initializing && (connection == null || editingConnection)
 }
@@ -338,6 +349,56 @@ internal class DriveViewModel(application: Application) : AndroidViewModel(appli
 
     fun dismissQuota() { mutable.update { it.copy(quotaAlert = null) } }
     fun notify(message: String) { notices.trySend(message) }
+
+    fun checkForUpdates() {
+        if (state.value.update.checking) return
+        viewModelScope.launch {
+            mutable.update {
+                it.copy(update = it.update.copy(checking = true, error = null, upToDate = false))
+            }
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    drive.ffiClients.ensureLoaded()
+                    com.taildrive.ffi.checkForUpdate("android-apk-arm64", null, true)
+                }
+                when (result) {
+                    is com.taildrive.ffi.UpdateCheck.UpToDate -> {
+                        mutable.update {
+                            it.copy(
+                                update = UpdateBannerState(
+                                    currentVersion = result.current.version,
+                                    upToDate = true,
+                                )
+                            )
+                        }
+                    }
+                    is com.taildrive.ffi.UpdateCheck.Available -> {
+                        mutable.update {
+                            it.copy(
+                                update = UpdateBannerState(
+                                    currentVersion = result.current.version,
+                                    availableVersion = result.release.version,
+                                    downloadUrl = result.release.downloadUrl,
+                                    notes = result.release.notes.ifBlank { null },
+                                )
+                            )
+                        }
+                    }
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                mutable.update {
+                    it.copy(
+                        update = it.update.copy(
+                            checking = false,
+                            error = failure.message ?: "Could not check for updates.",
+                        )
+                    )
+                }
+            }
+        }
+    }
 
     private fun resumeWork(connection: Connection, reconnecting: Boolean = false) {
         transfers.value.filter { it.account == connection.accountKey && it.pending }.forEach {

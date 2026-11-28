@@ -166,6 +166,14 @@ public final class SyncModel: ObservableObject {
         folder.appendingPathComponent(path)
     }
 
+    public func prepareForShutdown() {
+        timer?.invalidate()
+        timer = nil
+        network.cancel()
+        watcher = nil
+        worker?.control.setRunning(false)
+    }
+
     private func start(_ configuration: DriveConfiguration, token: String) throws {
         let client = try Self.makeClient(configuration, token: token)
         install(try SyncWorker(configuration: configuration, client: client), configuration: configuration)

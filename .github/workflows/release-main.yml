@@ -1,0 +1,232 @@
+name: Release main
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  build-and-release:
+    runs-on: [self-hosted, macOS, ARM64, macmini-ci]
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure toolchain PATH
+        run: |
+          echo "/opt/homebrew/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
+      - name: Compute release metadata
+        id: meta
+        run: |
+          build_number=$(git rev-list --count HEAD)
+          commit_sha=$(git rev-parse HEAD)
+          short_sha=$(printf '%s' "$commit_sha" | cut -c1-7)
+          built_at=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          base_version=$(awk -F'"' '/^version =/{print $2; exit}' Cargo.toml)
+          version="${base_version}-main.${build_number}+${short_sha}"
+          tag="main-${build_number}"
+
+          prev_tag=$(git tag --list 'main-*' --sort=-v:refname | grep -v '^main-latest$' | head -n 1 || true)
+          if [ -n "$prev_tag" ] && git rev-parse "$prev_tag" >/dev/null 2>&1; then
+            notes=$(git log --no-merges --pretty=format:'- %s (%h)' "${prev_tag}..HEAD" | head -n 20)
+          else
+            notes=$(git log --no-merges -n 10 --pretty=format:'- %s (%h)')
+          fi
+          if [ -z "$notes" ]; then
+            notes="- $(git log -1 --pretty=format:'%s (%h)')"
+          fi
+
+          {
+            echo "build_number=${build_number}"
+            echo "commit_sha=${commit_sha}"
+            echo "short_sha=${short_sha}"
+            echo "built_at=${built_at}"
+            echo "base_version=${base_version}"
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "notes<<EOF"
+            echo "${notes}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Package TailDrive server and web UI
+        env:
+          TAILDRIVE_CHANNEL: main
+          TAILDRIVE_BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          TAILDRIVE_COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
+          TAILDRIVE_BUILT_AT: ${{ steps.meta.outputs.built_at }}
+          TAILDRIVE_DIST_DIR: ${{ runner.temp }}/release-dist
+        run: |
+          chmod +x scripts/package-server.sh scripts/package-macos.sh
+          ./scripts/package-server.sh
+
+      - name: Package macOS TailDrive.app
+        env:
+          TAILDRIVE_CHANNEL: main
+          TAILDRIVE_BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          TAILDRIVE_COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
+          TAILDRIVE_BUILT_AT: ${{ steps.meta.outputs.built_at }}
+          TAILDRIVE_BASE_VERSION: ${{ steps.meta.outputs.base_version }}
+          TAILDRIVE_DIST_DIR: ${{ runner.temp }}/release-dist
+        run: |
+          ./scripts/package-macos.sh
+
+      - name: Package Android APK (if Android SDK/NDK installed)
+        env:
+          TAILDRIVE_CHANNEL: main
+          TAILDRIVE_BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          TAILDRIVE_COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
+          TAILDRIVE_BUILT_AT: ${{ steps.meta.outputs.built_at }}
+          TAILDRIVE_VERSION_NAME: ${{ steps.meta.outputs.version }}
+          ANDROID_HOME: /opt/homebrew/share/android-commandlinetools
+          JAVA_HOME: /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+        run: |
+          if [ -d "$ANDROID_HOME/ndk/28.2.13676358" ] && command -v gradle >/dev/null 2>&1; then
+            if command -v rustup >/dev/null 2>&1; then
+              rustup target add aarch64-linux-android
+            fi
+            ./clients/android/scripts/build-android-rust.sh
+            (cd clients/android && gradle assembleDebug --no-daemon)
+            apk_src="clients/android/app/build/outputs/apk/debug/app-debug.apk"
+            if [ -f "$apk_src" ]; then
+              cp "$apk_src" "${{ runner.temp }}/release-dist/TailDrive-android-arm64-${{ steps.meta.outputs.short_sha }}.apk"
+            fi
+          else
+            echo "Android NDK/Gradle not present on runner; skipping APK."
+          fi
+
+      - name: Build and sign release manifest
+        env:
+          TAILDRIVE_UPDATE_SIGNING_KEY: ${{ secrets.TAILDRIVE_UPDATE_SIGNING_KEY }}
+          RELEASE_DIR: ${{ runner.temp }}/release-dist
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          BUILD_NUMBER: ${{ steps.meta.outputs.build_number }}
+          COMMIT_SHA: ${{ steps.meta.outputs.commit_sha }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          BUILT_AT: ${{ steps.meta.outputs.built_at }}
+          NOTES: ${{ steps.meta.outputs.notes }}
+        run: |
+          /usr/bin/python3 - <<'PY'
+          import hashlib, json, os, pathlib
+
+          release_dir = pathlib.Path(os.environ["RELEASE_DIR"])
+          repo = os.environ["REPO"]
+          tag = os.environ["TAG"]
+          short_sha = os.environ["SHORT_SHA"]
+          base_dl = f"https://github.com/{repo}/releases/download/{tag}"
+
+          candidates = {
+              "macos-app-arm64": release_dir / f"TailDrive-macos-arm64-{short_sha}.zip",
+              "server-darwin-arm64": release_dir / f"taildrive-server-darwin-arm64-{short_sha}.tar.gz",
+              "android-apk-arm64": release_dir / f"TailDrive-android-arm64-{short_sha}.apk",
+          }
+
+          artifacts = {}
+          for key, path in candidates.items():
+              if path.is_file():
+                  h = hashlib.sha256()
+                  with path.open("rb") as fh:
+                      for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+                          h.update(chunk)
+                  artifacts[key] = {
+                      "url": f"{base_dl}/{path.name}",
+                      "sha256": h.hexdigest(),
+                      "size": path.stat().st_size,
+                  }
+
+          assert "macos-app-arm64" in artifacts, "missing macOS app artifact"
+          assert "server-darwin-arm64" in artifacts, "missing server artifact"
+
+          manifest = {
+              "schema_version": 1,
+              "channel": "main",
+              "version": os.environ["VERSION"],
+              "build_number": int(os.environ["BUILD_NUMBER"]),
+              "commit_sha": os.environ["COMMIT_SHA"],
+              "published_at": os.environ["BUILT_AT"],
+              "release_url": f"https://github.com/{repo}/releases/tag/{tag}",
+              "notes": os.environ["NOTES"].strip(),
+              "artifacts": artifacts,
+          }
+          manifest_path = release_dir / "manifest.json"
+          manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+          PY
+
+          ./target/release/taildrive-server release-sign \
+            --manifest "${{ runner.temp }}/release-dist/manifest.json" \
+            --output "${{ runner.temp }}/release-dist/manifest.json.sig"
+
+      - name: Publish immutable release and update main-latest pointer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_DIR: ${{ runner.temp }}/release-dist
+          TAG: ${{ steps.meta.outputs.tag }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          SHORT_SHA: ${{ steps.meta.outputs.short_sha }}
+          NOTES: ${{ steps.meta.outputs.notes }}
+        run: |
+          assets=()
+          for file in \
+            "$RELEASE_DIR/TailDrive-macos-arm64-${SHORT_SHA}.zip" \
+            "$RELEASE_DIR/taildrive-server-darwin-arm64-${SHORT_SHA}.tar.gz" \
+            "$RELEASE_DIR/TailDrive-android-arm64-${SHORT_SHA}.apk" \
+            "$RELEASE_DIR/manifest.json" \
+            "$RELEASE_DIR/manifest.json.sig"
+          do
+            if [ -f "$file" ]; then
+              assets+=("$file")
+            fi
+          done
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --target "$GITHUB_SHA" \
+              --title "TailDrive ${VERSION}" \
+              --notes "$NOTES"
+          fi
+
+          # Atomically update the rolling main-latest pointer AFTER immutable assets exist.
+          git tag -f main-latest "$GITHUB_SHA"
+          git push -f origin main-latest
+          if gh release view main-latest >/dev/null 2>&1; then
+            gh release edit main-latest \
+              --title "TailDrive main (latest: ${VERSION})" \
+              --notes "$NOTES"
+            gh release upload main-latest \
+              "$RELEASE_DIR/manifest.json" \
+              "$RELEASE_DIR/manifest.json.sig" \
+              --clobber
+          else
+            gh release create main-latest \
+              "$RELEASE_DIR/manifest.json" \
+              "$RELEASE_DIR/manifest.json.sig" \
+              --title "TailDrive main (latest: ${VERSION})" \
+              --notes "$NOTES"
+          fi
+
+          # Retain the 10 most recent immutable main-<N> releases for rollback.
+          old_tags=$(gh release list --limit 50 --json tagName --jq '.[].tagName' \
+            | grep -E '^main-[0-9]+$' \
+            | sort -t- -k2 -nr \
+            | tail -n +11 || true)
+          for old_tag in $old_tags; do
+            gh release delete "$old_tag" --yes --cleanup-tag || true
+          done
