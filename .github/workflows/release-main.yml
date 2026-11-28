@@ -16,7 +16,50 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  formal-verify:
+    runs-on: [self-hosted, macOS, ARM64, macmini-ci]
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure toolchain PATH
+        run: |
+          {
+            echo "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home/bin"
+            echo "/opt/homebrew/bin"
+            echo "$HOME/.cargo/bin"
+          } >> "$GITHUB_PATH"
+
+      - name: Run formal verification gate before release
+        env:
+          CI: "true"
+          JAVA_HOME: /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+          TLA2TOOLS_JAR: /Users/arturokuang/ci/tools/tla2tools.jar
+          TLC_WORKERS: "2"
+          TLC_META_ROOT: ${{ runner.temp }}
+          FORMAL_REPORT_DIR: ${{ runner.temp }}/formal-reports
+        run: |
+          chmod +x scripts/formal-verify.sh scripts/static-analysis.sh scripts/code-quality.sh scripts/verify-harness-guard.sh scripts/check-formal-drift.sh
+          ./scripts/formal-verify.sh --mode standard
+
+      - name: Upload formal verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taildrive-release-formal-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/formal-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean up TLC temp state
+        if: always()
+        run: |
+          rm -rf "${{ runner.temp }}"/tlc-taildrive-*
+
   build-and-release:
+    needs: formal-verify
     runs-on: [self-hosted, macOS, ARM64, macmini-ci]
     steps:
       - name: Checkout full history
@@ -320,7 +363,12 @@ jobs:
 
           # Keep the 5 most recent artifacts per prefix in ~/.taildrive/releases/artifacts.
           for prefix in "TailDrive-macos-arm64-" "taildrive-server-darwin-arm64-" "TailDrive-android-arm64-"; do
-            ls -1t "$releases_dir/artifacts/${prefix}"* 2>/dev/null | tail -n +6 | while IFS= read -r old_file; do
-              [ -n "$old_file" ] && rm -f "$old_file"
-            done
+            python3 - "$releases_dir/artifacts" "$prefix" <<'PY'
+          import pathlib, sys
+          root = pathlib.Path(sys.argv[1])
+          prefix = sys.argv[2]
+          matches = sorted(root.glob(f"{prefix}*"), key=lambda p: p.stat().st_mtime, reverse=True)
+          for old_file in matches[5:]:
+              old_file.unlink(missing_ok=True)
+          PY
           done

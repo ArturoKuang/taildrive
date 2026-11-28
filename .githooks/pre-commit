@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# Fast staged-file pre-commit hook for TailDrive.
+# Installed via: ./scripts/install-hooks.sh (git config core.hooksPath .githooks)
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "[pre-commit] Running G0 staged static analysis..."
+"$ROOT/scripts/static-analysis.sh" --staged
+
+STAGED="$(git diff --cached --name-only --diff-filter=ACMR)"
+
+# If formal files changed, verify manifest & anti-cheat guard immediately.
+if printf '%s\n' "$STAGED" | grep -qE '^(formal/|crates/.*/tests/formal_|\.cursor/skills/formal-verify-taildrive/)'; then
+  echo "[pre-commit] Formal artifacts staged; running G3 guard..."
+  "$ROOT/scripts/verify-harness-guard.sh"
+fi
+
+# If any TLA+ spec or config changed, run TLC on affected models immediately.
+if printf '%s\n' "$STAGED" | grep -qE '^formal/tla/.*\.(tla|cfg)$'; then
+  if [[ -f "${TLA2TOOLS_JAR:-$HOME/ci/tools/tla2tools.jar}" ]]; then
+    echo "[pre-commit] TLA+ spec/config staged; running TLC + canary check..."
+    "$ROOT/scripts/formal-verify.sh" --skip-static --skip-code
+  else
+    echo "[pre-commit] WARN: tla2tools.jar not found locally; CI on macmini-ci will run TLC."
+  fi
+fi
+
+# Advisory drift check if staged changes touch covered source files.
+"$ROOT/scripts/check-formal-drift.sh" --staged

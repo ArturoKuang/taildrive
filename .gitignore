@@ -2,3 +2,4 @@
 /data
 /clients/macos/.build/
 /clients/macos/.swiftpm/
+.formal-reports/

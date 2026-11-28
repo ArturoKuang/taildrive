@@ -30,5 +30,8 @@ uniffi = "0.32.2"
 jni = "0.22.4"
 rustls-platform-verifier = "0.7.1"
 
+[dev-dependencies]
+proptest.workspace = true
+
 [lints]
 workspace = true

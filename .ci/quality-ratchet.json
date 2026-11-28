@@ -1,0 +1,11 @@
+{
+  "description": "Code quality ceilings for TailDrive. Values may tighten over time but CI blocks regressions.",
+  "ceilings": {
+    "rust_prod_unwrap_calls": 1,
+    "rust_prod_panic_macros": 0,
+    "rust_prod_allow_attrs": 3,
+    "rust_prod_files_over_600_loc": 2,
+    "rust_prod_max_file_loc": 688,
+    "ts_prod_any_or_ignore": 0
+  }
+}
