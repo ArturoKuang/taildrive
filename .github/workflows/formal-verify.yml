@@ -1,0 +1,81 @@
+name: Formal Verification & Static Analysis
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Verification depth (standard for PRs, deep for expanded TLC & property bounds)"
+        type: choice
+        default: standard
+        options:
+          - standard
+          - deep
+  schedule:
+    # Nightly deep formal verification & soak at 09:00 UTC (01:00 PT) on macmini-ci
+    - cron: "0 9 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: formal-verify-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  formal-verify:
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, macOS, ARM64, macmini-ci]
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure toolchain PATH
+        run: |
+          {
+            echo "/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home/bin"
+            echo "/opt/homebrew/bin"
+            echo "$HOME/.cargo/bin"
+          } >> "$GITHUB_PATH"
+
+      - name: Install web dependencies for TypeScript static check
+        run: |
+          if [ -f web/package-lock.json ]; then
+            (cd web && npm ci --no-audit --no-fund)
+          fi
+
+      - name: Run formal verification harness (G0 -> G1 -> G2 -> G3)
+        env:
+          CI: "true"
+          JAVA_HOME: /opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+          TLA2TOOLS_JAR: /Users/arturokuang/ci/tools/tla2tools.jar
+          TLC_WORKERS: "2"
+          TLC_META_ROOT: ${{ runner.temp }}
+          FORMAL_REPORT_DIR: ${{ runner.temp }}/formal-reports
+        run: |
+          chmod +x scripts/formal-verify.sh scripts/static-analysis.sh scripts/code-quality.sh scripts/verify-harness-guard.sh scripts/check-formal-drift.sh
+          MODE="standard"
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            MODE="deep"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.mode }}" ]; then
+            MODE="${{ inputs.mode }}"
+          fi
+          ./scripts/formal-verify.sh --mode "$MODE"
+
+      - name: Upload formal verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taildrive-formal-report-${{ github.run_id }}
+          path: ${{ runner.temp }}/formal-reports/
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Clean up TLC temp state
+        if: always()
+        run: |
+          rm -rf "${{ runner.temp }}"/tlc-taildrive-*

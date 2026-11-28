@@ -19,6 +19,7 @@ futures-util = "0.3.34"
 hex = "0.4.3"
 nix = { version = "0.32.0", features = ["fs"] }
 opendal = { version = "0.59.5", default-features = false, features = ["services-s3", "services-memory", "http-transport-reqwest", "executors-tokio"] }
+proptest = "1"
 rand = "0.10.4"
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "query", "rustls", "stream", "http2"] }
 ring = "0.17.14"

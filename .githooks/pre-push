@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+# Pre-push verification gate for TailDrive: runs G0 static analysis + G1 TLC models & canaries + G3 guard.
+set -euo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+if [[ "${SKIP_FORMAL_PREPUSH:-0}" == "1" ]]; then
+  echo "[pre-push] SKIP_FORMAL_PREPUSH=1 set; skipping local formal pre-push (CI still enforces it)."
+  exit 0
+fi
+
+echo "[pre-push] Running G0 static analysis + G1 TLA+ models & canaries + G3 guard..."
+if [[ -f "${TLA2TOOLS_JAR:-$HOME/ci/tools/tla2tools.jar}" ]]; then
+  "$ROOT/scripts/formal-verify.sh" --skip-code
+else
+  echo "[pre-push] WARN: tla2tools.jar not found locally; running G0 static analysis + G3 guard only."
+  "$ROOT/scripts/static-analysis.sh"
+  "$ROOT/scripts/verify-harness-guard.sh"
+fi

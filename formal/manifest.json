@@ -1,0 +1,313 @@
+{
+  "repo": "ArturoKuang/taildrive",
+  "sync_commit": "fc03a502963361a4b31cf9e0aaa0e559da942be2",
+  "tla2tools_sha256": "18e0d9caa517a6553ef50c7105191b1bfcfe5cc630bdbceefc087093e0520ce3",
+  "models": [
+    {
+      "name": "ReaderSyncProtocol",
+      "spec": "formal/tla/ReaderSyncProtocol.tla",
+      "config": "formal/tla/ReaderSyncProtocol.cfg",
+      "deep_config": "formal/tla/ReaderSyncProtocol_Deep.cfg",
+      "canary_config": "formal/tla/ReaderSyncProtocol_Canary.cfg",
+      "canary_expected_invariant": "NoSilentOverwrite",
+      "covered_files": [
+        "docs/reader-sync/SYNC_SPEC.md",
+        "crates/taildrive-server/src/reader/wire.rs",
+        "crates/taildrive-server/src/reader/store.rs",
+        "crates/taildrive-server/src/reader/blobs.rs"
+      ],
+      "covered_symbols": [
+        "wire::same",
+        "wire::decide",
+        "wire::position_rejection",
+        "wire::decide_position",
+        "store::push",
+        "store::apply",
+        "store::apply_position",
+        "store::apply_record",
+        "store::write_head",
+        "store::write_new",
+        "store::open_conflict",
+        "store::append_side",
+        "store::pull",
+        "store::resolve",
+        "store::register_book",
+        "blobs::Blobs::put"
+      ],
+      "properties": [
+        {
+          "name": "TypeOK",
+          "summary": "All server tables, sequence counters, record versions, open conflicts, positions, and blob states stay within their typed domains.",
+          "harm": "Corrupt database records or malformed wire envelopes causing client deserialization crashes."
+        },
+        {
+          "name": "SeqStrictlyMonotonic",
+          "summary": "The global server sequence counter never decreases, every stored record_versions row has strictly increasing seq, and every live record holds a globally unique seq <= meta.seq.",
+          "harm": "Pull cursors skip edits or loop indefinitely when devices catch up after being offline."
+        },
+        {
+          "name": "IdempotentReplaySound",
+          "summary": "Replaying an already-committed batchId or changeId with an identical request body returns the stored result without advancing seq or mutating records; reusing an ID with a different body rejects change_id_reused without side effects; crash-before-commit rolls back atomically so retry applies once.",
+          "harm": "Duplicate highlights/notes or phantom conflicts when a flaky mobile network retries an HTTP push."
+        },
+        {
+          "name": "PositionNeverConflicts",
+          "summary": "Per-device reading positions enforce owner-only writes, reject deletes, ignore baseVersion, fast-forward on any differing payload, and never open a conflict.",
+          "harm": "Spurious conflict badges on reading progress or one device clobbering another device's position."
+        },
+        {
+          "name": "IdenticalContentNeverConflicts",
+          "summary": "Pushing content canonically identical to the head or an open side is always a noop; every open conflict contains at least two canonically distinct sides.",
+          "harm": "Useless '2 versions' conflict prompts when two devices independently look up the same word or delete the same highlight."
+        },
+        {
+          "name": "NoSilentOverwrite",
+          "summary": "Every concurrent divergent write (baseVersion < head.version, distinct content) is preserved either as the head or inside conflict_sides until explicitly superseded by a valid fast-forward or ResolveConflict.",
+          "harm": "Silent loss of user highlights, notes, or vocabulary definitions edited offline on another device."
+        },
+        {
+          "name": "BookRegisterDeterministic",
+          "summary": "register_book applies Rules 1 (existing sha256), 2 (attach matching format + non-empty docId), and 3 (create new book) deterministically within a transaction, never merging different formats.",
+          "harm": "Duplicate books with fragmented highlights after re-saving a PDF, or cross-format book corruption."
+        },
+        {
+          "name": "DiskFullNeverBlocksRecords",
+          "summary": "When free disk falls below TailDrive's free-disk floor, book blob uploads fail with HTTP 507 disk_full while record pushes, positions, conflict resolutions, and book registrations continue unimpeded.",
+          "harm": "Highlights, notes, and vocabulary stop syncing just because the Mac mini's disk is near its floor for large PDF/EPUB blobs."
+        },
+        {
+          "name": "SeqNeverDecreases",
+          "summary": "Temporal action property verifying that meta.seq is monotonically non-decreasing across every transition.",
+          "harm": "Cursor regression causing pull feeds to stall across restarts or transactions."
+        }
+      ],
+      "bounds": {
+        "standard": {
+          "Devices": 2,
+          "Payloads": 2,
+          "Shas": 3,
+          "MaxSeq": 4,
+          "MaxChanges": 3
+        },
+        "deep": {
+          "Devices": 2,
+          "Payloads": 3,
+          "Shas": 4,
+          "MaxSeq": 5,
+          "MaxChanges": 3
+        }
+      },
+      "non_goals": [
+        "HTTP TLS/Tailscale authentication, pairing token TTL expiry, and redeem rate limiting (§4, §5.2).",
+        "Streaming Range byte downloads and multi-chunk .part file fsync/SHA-256 hashing internals (covered by Rust BlobStore tests).",
+        "Reader macOS/Android Markdown projection, vault callout migration, and Swift/JS word-id Unicode normalization (covered by Rust wire tests and normalize.json fixture)."
+      ]
+    },
+    {
+      "name": "TailDriveSync3Way",
+      "spec": "formal/tla/TailDriveSync3Way.tla",
+      "config": "formal/tla/TailDriveSync3Way.cfg",
+      "deep_config": "formal/tla/TailDriveSync3Way_Deep.cfg",
+      "canary_config": "formal/tla/TailDriveSync3Way_Canary.cfg",
+      "canary_expected_invariant": "NonEmptyFolderProtected",
+      "covered_files": [
+        "crates/taildrive-ffi/src/sync.rs",
+        "clients/macos/Sources/TailDriveSyncKit/SyncWorker.swift",
+        "clients/macos/Sources/TailDriveSyncKit/LocalMirror.swift"
+      ],
+      "covered_symbols": [
+        "plan_folder_sync",
+        "SyncEntry",
+        "SyncAction",
+        "SyncWorker::sync",
+        "SyncWorker::apply",
+        "SyncWorker::saveConflict",
+        "Checkpoint",
+        "LocalMirror::preserveConflict",
+        "LocalMirror::delete",
+        "LocalMirror::validate"
+      ],
+      "properties": [
+        {
+          "name": "TypeOK",
+          "summary": "Local, remote, baseline, snapshots, planned actions, and conflict sibling slots stay within their valid entry and action domains.",
+          "harm": "Invalid planner output or malformed checkpoint state breaking macOS sync reconciliation."
+        },
+        {
+          "name": "TreeWellFormed",
+          "summary": "Every present file or folder in both local and remote trees has a present folder parent at every step, preserved by top-down forward actions and bottom-up delete actions.",
+          "harm": "Orphaned file paths, failed directory creations, or files created beneath non-existent folders."
+        },
+        {
+          "name": "NoSilentEditLoss",
+          "summary": "Every active local or remote user edit survives either at its original path, its conflict sibling copy, or under a moved kind-conflict folder subtree, including across mid-sync If-Match 409 upload races.",
+          "harm": "User edits silently overwritten by a concurrent remote edit or wiped out by an opposing folder/file delete."
+        },
+        {
+          "name": "NoResurrectionOfCleanDelete",
+          "summary": "A file cleanly deleted on one side while unchanged on the other is never planned for Upload/Download and remains absent on both sides once converged.",
+          "harm": "Zombie files reappearing after users delete them on one device."
+        },
+        {
+          "name": "NonEmptyFolderProtected",
+          "summary": "plan_folder_sync never plans DeleteRemote or DeleteLocal on a folder when any descendant on that side is being kept, uploaded, or downloaded (keep_remote_folders / keep_local_folders guard).",
+          "harm": "Deleting a folder that still holds newly added or modified files on the other side, causing data loss or repeated 409 ERR_NOT_EMPTY sync failures."
+        },
+        {
+          "name": "EventualConvergence",
+          "summary": "Temporal liveness property proving that once bounded user edits quiesce, fair sync cycles eventually converge local, remote, and baseline to identical well-formed trees.",
+          "harm": "Infinite conflict-rescan loops or permanently diverged macOS and server folder trees."
+        }
+      ],
+      "bounds": {
+        "standard": {
+          "BasePaths": ["a", "a/f", "b"],
+          "ContentVals": 2,
+          "MaxEdits": 2
+        },
+        "deep": {
+          "BasePaths": ["a", "a/f", "a/g", "b"],
+          "ContentVals": 3,
+          "MaxEdits": 2
+        }
+      },
+      "non_goals": [
+        "POSIX symlink traversal rejection, .DS_Store filtering, and APFS mtime/inode hash-cache invalidation.",
+        "Network transport retries, per-path SyncControl pause/block UI state, and streaming download progress callbacks.",
+        "Multi-client mid-sync races on unconditional DELETE /v1/files or new-file PUT without If-None-Match (documented as real-code findings; modeled separately under BUG_MODE = \"unconditional_delete_race\")."
+      ]
+    },
+    {
+      "name": "TailDriveQuotaStorage",
+      "spec": "formal/tla/TailDriveQuotaStorage.tla",
+      "config": "formal/tla/TailDriveQuotaStorage.cfg",
+      "deep_config": "formal/tla/TailDriveQuotaStorage_Deep.cfg",
+      "canary_config": "formal/tla/TailDriveQuotaStorage_Canary.cfg",
+      "canary_expected_invariant": "QuotaNeverExceeded",
+      "covered_files": [
+        "crates/taildrive-server/src/drive.rs",
+        "crates/taildrive-server/src/db.rs",
+        "crates/taildrive-server/src/storage/mod.rs"
+      ],
+      "covered_symbols": [
+        "Drive::put",
+        "Drive::reserve_file",
+        "Drive::reserve_part",
+        "Drive::init_upload",
+        "Drive::put_part",
+        "Drive::complete",
+        "Drive::commit_file",
+        "Drive::publish",
+        "Drive::abort",
+        "Drive::delete",
+        "Drive::open_file",
+        "Drive::collect_garbage",
+        "Reserved::collect",
+        "BlobRollback",
+        "db::check_target",
+        "db::write_file",
+        "db::delete_tree",
+        "db::used_bytes",
+        "db::pending_bytes",
+        "db::record_part",
+        "db::remove_upload",
+        "db::enqueue_garbage",
+        "db::forget_garbage",
+        "Spool::stage"
+      ],
+      "properties": [
+        {
+          "name": "TypeOK",
+          "summary": "Files, usage counters, resumable uploads, upload RwLocks, blob storage, garbage queue, and worker states stay within valid typed domains.",
+          "harm": "Corrupted reservation counters or invalid SQLite upload/file metadata."
+        },
+        {
+          "name": "QuotaNeverExceeded",
+          "summary": "Committed live file bytes (usage.used_bytes) never exceed the server quota limit under arbitrary concurrent direct puts, resumable uploads, overwrites, and deletes.",
+          "harm": "Concurrent overwrite-vs-delete races bypassing admission control and overfilling the user's storage quota."
+        },
+        {
+          "name": "UsageMatchesLiveFiles",
+          "summary": "The cached usage.used_bytes table maintained by SQLite triggers always equals the exact sum of live files.size_bytes.",
+          "harm": "Permanent quota drift causing false 507 ERR_QUOTA_EXCEEDED errors or unbounded usage under-reporting."
+        },
+        {
+          "name": "DiskFloorRespected",
+          "summary": "Actual free disk space (accounting for both stored blobs and staged spool files) never drops below config.free_floor_bytes.",
+          "harm": "Concurrent uploads exhausting the Mac mini's disk and destabilizing macOS or corrupting SQLite WAL files."
+        },
+        {
+          "name": "NoDanglingLiveBlob",
+          "summary": "Every live file and every recorded resumable upload part points to a present blob of exact matching size in storage that is not in garbage; open_file never reads a deleted or retired blob.",
+          "harm": "404/500 download failures or corrupted resumable upload reassembly when GC races with open_file or complete."
+        },
+        {
+          "name": "NoOrphanedBlob",
+          "summary": "Every blob occupying storage is accounted for by a live file, a live upload part, an active publish/BlobRollback guard, or the SQLite garbage queue.",
+          "harm": "Silent disk leaks from failed commits, aborted uploads, or rolled-back If-Match conflicts."
+        },
+        {
+          "name": "GarbageEventuallyReclaimed",
+          "summary": "Temporal liveness property proving that under weak fairness of CollectGarbage and BlobRollback, every retired or rolled-back blob in garbage is eventually deleted from storage and forgotten from SQLite.",
+          "harm": "Retired blobs accumulating forever and starving free disk space below the floor."
+        }
+      ],
+      "bounds": {
+        "standard": {
+          "Paths": 2,
+          "Workers": 2,
+          "Sizes": [2, 3],
+          "QuotaLimit": 4,
+          "DiskTotal": 12,
+          "DiskFloor": 4,
+          "MaxBlobId": 3
+        },
+        "deep": {
+          "Paths": 2,
+          "Workers": 2,
+          "Sizes": [1, 2, 3],
+          "QuotaLimit": 4,
+          "DiskTotal": 10,
+          "DiskFloor": 4,
+          "MaxBlobId": 3
+        }
+      },
+      "non_goals": [
+        "External non-TailDrive processes consuming host disk space concurrently.",
+        "S3 eventual consistency or network partition during StorageBackend::publish.",
+        "Share token expiry wall-clock precision and HTTP Range header parsing."
+      ]
+    }
+  ],
+  "code_harnesses": [
+    {
+      "path": "crates/taildrive-core/tests/formal_properties.rs",
+      "covered_files": [
+        "crates/taildrive-core/src/path.rs",
+        "crates/taildrive-core/src/hash.rs"
+      ]
+    },
+    {
+      "path": "crates/taildrive-ffi/tests/formal_sync_3way.rs",
+      "covered_files": [
+        "crates/taildrive-ffi/src/sync.rs"
+      ]
+    },
+    {
+      "path": "crates/taildrive-server/tests/formal_reader_sync.rs",
+      "covered_files": [
+        "crates/taildrive-server/src/reader/wire.rs",
+        "crates/taildrive-server/src/reader/store.rs",
+        "crates/taildrive-server/src/reader/blobs.rs"
+      ]
+    },
+    {
+      "path": "crates/taildrive-server/tests/formal_drive_quota.rs",
+      "covered_files": [
+        "crates/taildrive-server/src/drive.rs",
+        "crates/taildrive-server/src/db.rs",
+        "crates/taildrive-server/src/storage/mod.rs"
+      ]
+    }
+  ]
+}
